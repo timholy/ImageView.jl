@@ -4,9 +4,9 @@ import Base: show
 import Base.Graphics: width, height, fill, set_coords
 
 
-# Since we have Tk available, don't force the user to type a filename
+# Dialog-based image opening
 import Images.imread
-imread() = imread(GetOpenFile())
+# imread() = imread(GtkFileChooserDialog())  # TODO
 
 @linux_only const default_perimeter = RGB(0.85,0.85,0.85)
 @osx_only const default_perimeter = RGB(0.93, 0.93, 0.93)
@@ -63,9 +63,9 @@ show(io::IO, imgc::ImageCanvas) = print(io, "ImageCanvas")
 
 canvas(imgc::ImageCanvas) = imgc.c
 
-parent(imgc::ImageCanvas) = Tk.parent(imgc.c)
+parent(imgc::ImageCanvas) = parent(imgc.c)
 
-toplevel(imgc::ImageCanvas) = Tk.toplevel(canvas(imgc))
+toplevel(imgc::ImageCanvas) = gdk_window(canvas(imgc))
 
 function setbb!(imgc::ImageCanvas, w, h)
     if !is(imgc.aspect_x_per_y, nothing)
@@ -230,25 +230,25 @@ function display{A<:AbstractArray}(img::A; proplist...)
         whfull += btnsz[2] + 2*pad
     end
     # Create the window and the canvas for displaying the image
-    win = Toplevel(get(props, :name, "ImageView"), ww, whfull, false)
-    framec = OS_NAME == :Darwin ? Frame(win, padding = 30) : Frame(win) # helps with accidental rubberband on resize
-    grid(framec, 1, 1, sticky="nsew")
-    grid_rowconfigure(win, 1, weight=1) # scale this cell when the window resizes
-    grid_columnconfigure(win, 1, weight=1)
-    c = Canvas(framec, ww, wh)
+    win = Window(get(props, :name, "ImageView"), ww, whfull)
+    if OS_NAME == :Darwin
+        win[:border_width] = 30
+    end
+#     framec = Frame()
+    framec = BoxLayout(:v)
+    push!(win, framec)
+#     c = Canvas(ww, wh)
+    c = Canvas()
+    push!(framec, c)
+    framec[c,:expand] = true
     imgc.c = c
-    # Place the canvas and set its resize properties
-    grid(c, 1, 1, sticky="nsew")        # fill the edges of its cell on all 4 sides
-    grid_rowconfigure(framec, 1, weight=1) # scale this cell when the window resizes
-    grid_columnconfigure(framec, 1, weight=1)
     # If necessary, create the navigation controls
-    lastrow = 1
     if havecontrols
         ctrls = NavigationControls()
         state = NavigationState(zmax, tmax)
         showframe = state -> reslice(imgc, img2, state)
-        fctrls = Frame(win)
-        grid(fctrls, lastrow+=1, 1, sticky="ew")  # place the controls below the image
+        fctrls = Frame()
+        push!(framec, fcntrls)
         init_navigation!(fctrls, ctrls, state, showframe)
         if zmax > 1
             try
@@ -262,33 +262,33 @@ function display{A<:AbstractArray}(img::A; proplist...)
         end
         imgc.navigationstate = state
         imgc.navigationctrls = ctrls
-        # Bind mousewheel events to navigation
-        bindwheel(c, "Alt", (path,delta)->reslicet(imgc,img2,ctrls,state,int(delta)))
-        bindwheel(c, "Alt-Control", (path,delta)->reslicez(imgc,img2,ctrls,state,int(delta)))
+        # Bind mousewheel events to navigation FIXME
+#         bindwheel(c, "Alt", (path,delta)->reslicet(imgc,img2,ctrls,state,int(delta)))
+#         bindwheel(c, "Alt-Control", (path,delta)->reslicez(imgc,img2,ctrls,state,int(delta)))
     end
     # Create the x,y position reporter
-    fnotify = Frame(win)
-    grid(fnotify, lastrow+=1, 1, sticky="ew")
-    xypos = Label(fnotify)
-    grid(xypos, 1, 1, sticky="ne")
+    fnotify = Frame()
+    push!(framec, fnotify)
+    xypos = Label("")
+    xypos[:name] = "Label:xyposition"
+    push!(fnotify, xypos)
     # Set up the rendering
-    set_visible(win, true)
-#     ctx = getgc(c)  # force initialization of canvas
     allocate_surface!(imgc, w, h)
     create_callbacks(imgc, img2)
     c.mouse.motion = (path,x,y) -> updatexylabel(xypos, imgc, x, y)
-    if imgc.render! == uint32color! && colorspace(img) == "Gray"
-        menu = Menu(framec)
-        clim = climdefault(img)
-        cs = ImageContrast.ContrastSettings(clim[1], clim[2])
-        imgc.render! = (buf,img) -> uint32color!(buf, img, scaleminmax(img, cs.min, cs.max))
-        menu_contrast = menu_add(menu, "Contrast...", path -> ImageContrast.contrastgui(img2.imslice, cs, x->redraw(imgc, img2)))
-        tk_popup(c, menu)
-    end
+    # TODO: implement context menus
+#     if imgc.render! == uint32color! && colorspace(img) == "Gray"
+#         menu = Menu(framec)
+#         clim = climdefault(img)
+#         cs = ImageContrast.ContrastSettings(clim[1], clim[2])
+#         imgc.render! = (buf,img) -> uint32color!(buf, img, scaleminmax(img, cs.min, cs.max))
+#         menu_contrast = menu_add(menu, "Contrast...", path -> ImageContrast.contrastgui(img2.imslice, cs, x->redraw(imgc, img2)))
+#         tk_popup(c, menu)
+#     end
     # render the initial state
     rerender(imgc, img2)
+    Gtk.init!(imgc.c)
     resize(imgc, img2)
-    Tk.configure(imgc.c)
     imgc, img2
 end
 
@@ -308,7 +308,7 @@ function display{A<:AbstractArray}(imgc::ImageCanvas, img::A; proplist...)
     create_callbacks(imgc, img2)
     rerender(imgc, img2)
     resize(imgc, img2)
-    Tk.configure(imgc.c)
+#     Tk.configure(imgc.c)
     imgc, img2
 end
 
@@ -330,7 +330,7 @@ function display{A<:AbstractArray}(c::Canvas, img::A; proplist...)
     create_callbacks(imgc, img2)
     rerender(imgc, img2)
     resize(imgc, img2)
-    Tk.configure(imgc.c)
+#     Tk.configure(imgc.c)
     imgc, img2
 end
 
@@ -392,30 +392,93 @@ function delete_annotations!(imgc::ImageCanvas)
     redraw(imgc)
 end
 
+type CbData
+    imgc::ImageCanvas
+    img2::ImageSlice2d
+end
+
 function create_callbacks(imgc, img2)
     c = canvas(imgc)
     # Set up the drawing callbacks
     c.draw = x -> resize(imgc, img2)
-    # Bind mouse clicks to zoom
+    # Receive additional event types
+    add_events(c, Gtk.GdkEventMask.GDK_SCROLL_MASK | Gtk.GdkEventMask.GDK_KEY_PRESS_MASK | Gtk.GdkEventMask.GDK_LEAVE_NOTIFY_MASK)
+    # Supporting double-clicks means we need to handle our own mouse button presses
+    data = CbData(imgc, img2)
+    on_signal_button_press(mousedown_cb, c, 0, data)
+    # Bind mouse clicks to rubberband zoom
     c.mouse.button1press = (c, x, y) -> rubberband_start(c, x, y, (c, bb) -> zoombb(imgc, img2, bb))
-    bind(c, "<Double-Button-1>", (path,x,y)->zoom_reset(imgc, img2))
-    # Bind mousewheel events to zoom
-    bindwheel(c, "Control", (path,delta,x,y)->zoomwheel(imgc,img2,int(delta),int(x),int(y)), "%x %y")
+    # Handle scroll events (pan and zoom)
+    signal_connect(scroll_cb, c, "scroll-event", Cint, (Ptr{Gtk.GdkEventScroll},), 0, data)
+    # Handle key press events
+    signal_connect(key_cb, c, "key-press-event", Cint, (Ptr{Gtk.GdkEventKey},), 0, data)
+    # Blank the x,y position label when pointer leaves Canvas
+    # FIXME: find a widget by its name?
+#   win = gdk_window(c)
+#   xypos = find_object(win, "Label:xyposition")
+    signal_connect(leave_cb, c, "leave-notify-event", Cint, (Ptr{Gtk.GdkEventCrossing},)) # 0, xypos
     # Bind keys to zoom
-    win = Tk.toplevel(c)
-    bind(win, "<Control-Up>", path->zoomwheel(imgc,img2,-1,pointerxy(win)...))
-    bind(win, "<Control-Down>", path->zoomwheel(imgc,img2,1,pointerxy(win)...))
-    # Bind mousewheel events to pan
-    bindwheel(c, "", (path,delta)->panvert(imgc,img2,int(delta)))
-    bindwheel(c, "Shift", (path,delta)->panhorz(imgc,img2,int(delta)))
+#     bind(win, "<Control-Up>", path->zoomwheel(imgc,img2,-1,pointerxy(win)...))
+#     bind(win, "<Control-Down>", path->zoomwheel(imgc,img2,1,pointerxy(win)...))
     # Bind arrow keys to pan
-    bind(win, "<Up>", path->panvert(imgc,img2,-1))
-    bind(win, "<Down>", path->panvert(imgc,img2,1))
-    bind(win, "<Left>", path->panhorz(imgc,img2,-1))
-    bind(win, "<Right>", path->panhorz(imgc,img2,1))
+#     bind(win, "<Up>", path->panvert(imgc,img2,-1))
+#     bind(win, "<Down>", path->panvert(imgc,img2,1))
+#     bind(win, "<Left>", path->panhorz(imgc,img2,-1))
+#     bind(win, "<Right>", path->panhorz(imgc,img2,1))
 end
 
+
 ### Callback handling ###
+function mousedown_cb(ptr::Ptr, eventp::Ptr, data)
+    event = unsafe_load(eventp)
+    imgc, img2 = data.imgc, data.img2
+    mouse = imgc.c.mouse
+    if event.button == 1
+        if event.event_type == Gtk.GdkEventType.GDK_DOUBLE_BUTTON_PRESS
+            zoom_reset(imgc, img2)
+        else
+            mouse.button1press(mouse.widget, event.x, event.y)
+        end
+    elseif event.button == 2
+        mouse.button2press(mouse.widget, event.x, event.y)
+    elseif event.button == 3
+        mouse.button3press(mouse.widget, event.x, event.y)
+    end
+    int32(false)
+end
+
+# TODO: add Navigation scroll events
+function scroll_cb(ptr::Ptr, eventp::Ptr, data::CbData)
+    event = unsafe_load(eventp)
+    imgc, img2 = data.imgc, data.img2
+    if event.state & Gtk.GdkModifierType.GDK_CONTROL_MASK > 0
+        zoomwheel(imgc, img2, scrollpm(event.direction), event.x, event.y)
+    elseif event.state & Gtk.GdkModifierType.GDK_SHIFT_MASK > 0
+        panhorz(imgc, img2, scrollpm(event.direction))
+    else
+        panvert(imgc, img2, scrollpm(event.direction))
+    end
+    int32(false)
+end
+
+scrollpm(direction::Integer) =
+    direction == Gtk.GdkScrollDirection.GDK_SCROLL_UP ? -1 :
+    direction == Gtk.GdkScrollDirection.GDK_SCROLL_DOWN ? 1 : error("Direction ", direction, " not recognized")
+
+# FIXME: for some reason, this never gets called despite setting up signal_connect
+function key_cb(ptr::Ptr, eventp::Ptr, data::CbData)
+    println("In key_cb")
+    event = unsafe_load(eventp)
+    imgc, img2 = data.imgc, data.img2
+    println("keyval: ", event.keyval, ", string: ", event.string)
+    int32(false)
+end
+
+function leave_cb(ptr::Ptr, eventp::Ptr, xypos)
+#   xypos[:label] = ""
+    int32(false)
+end
+
 # This takes the already-rendered surface and paints it to the canvas
 function redraw(imgc::ImageCanvas)
     r = getgc(imgc.c)
@@ -457,7 +520,7 @@ function redraw(imgc::ImageCanvas)
         draw(imgc.c, ann)
     end
     reveal(imgc.c)
-    Tk.update()
+#     Tk.update()
 end
 
 # Used for both window resize and zoom events
@@ -475,9 +538,9 @@ end
 function updatexylabel(xypos, imgc, x, y)
     if isinside(imgc.canvasbb, x, y)
         xu,yu = device_to_user(getgc(imgc.c), x, y)
-        set_value(xypos, string(iceil(xu), ", ", iceil(yu)))
+        xypos[:label] = string(iceil(xu), ", ", iceil(yu))
     else
-        set_value(xypos, "")
+        xypos[:label] = ""
     end
 end
 

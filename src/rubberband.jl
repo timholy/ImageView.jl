@@ -51,7 +51,7 @@ function rubberband_move(c::Canvas, rb::RubberBand, x, y, ctxcopy)
     rb.pos2 = Vec2(x, y)
     rbdraw(r, rb)
     reveal(c)
-    Tk.update()
+#     Tk.update()
 end
 
 function rubberband_stop(c::Canvas, rb::RubberBand, x, y, ctxcopy, callbacks_old, callback_done)
@@ -66,7 +66,7 @@ function rubberband_stop(c::Canvas, rb::RubberBand, x, y, ctxcopy, callbacks_old
     stroke(r)
     reveal(c)
     restore(r)
-    Tk.update()
+#     Tk.update()
     x1, y1 = rb.pos1.x, rb.pos1.y
     if abs(x1-x) > 2 || abs(y1-y) > 2
         # It moved sufficiently, let's execute the callback

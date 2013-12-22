@@ -6,7 +6,7 @@ using Base.Graphics
 # import Base.show
 
 using Color
-using Tk
+using Gtk, Gtk.ShortNames
 using Cairo
 using Images
 
