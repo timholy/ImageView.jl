@@ -2,7 +2,7 @@ using ImageView.Navigation
 
 import Base: show
 import Base.Graphics: width, height, fill, set_coords
-
+import Gtk: toplevel
 
 # Dialog-based image opening
 import Images.imread
@@ -32,7 +32,7 @@ type ImageCanvas
     renderbuf::Array{Uint32} # intermediate used if transpose is true
     canvasbb::BoundingBox    # drawing region within canvas, in device coordinates
     navigationstate
-    navigationctrls
+    guiobjects::Dict{Symbol,Any}
     
     function ImageCanvas(fmt::Int32, props::Dict)
         ps = get(props, :pixelspacing, nothing)
@@ -65,7 +65,7 @@ canvas(imgc::ImageCanvas) = imgc.c
 
 parent(imgc::ImageCanvas) = parent(imgc.c)
 
-toplevel(imgc::ImageCanvas) = gdk_window(canvas(imgc))
+toplevel(imgc::ImageCanvas) = toplevel(canvas(imgc))
 
 function setbb!(imgc::ImageCanvas, w, h)
     if !is(imgc.aspect_x_per_y, nothing)
@@ -230,7 +230,10 @@ function display{A<:AbstractArray}(img::A; proplist...)
         whfull += btnsz[2] + 2*pad
     end
     # Create the window and the canvas for displaying the image
+    guiobjects = Dict{Symbol,Any}()
+    imgc.guiobjects = guiobjects
     win = Window(get(props, :name, "ImageView"), ww, whfull)
+    guiobjects[:main] = win
     if OS_NAME == :Darwin
         win[:border_width] = 30
     end
@@ -240,6 +243,7 @@ function display{A<:AbstractArray}(img::A; proplist...)
 #     c = Canvas(ww, wh)
     c = Canvas()
     push!(framec, c)
+    guiobjects[:canvas] = c
     framec[c,:expand] = true
     imgc.c = c
     # If necessary, create the navigation controls
@@ -261,17 +265,14 @@ function display{A<:AbstractArray}(img::A; proplist...)
             end
         end
         imgc.navigationstate = state
-        imgc.navigationctrls = ctrls
-        # Bind mousewheel events to navigation FIXME
-#         bindwheel(c, "Alt", (path,delta)->reslicet(imgc,img2,ctrls,state,int(delta)))
-#         bindwheel(c, "Alt-Control", (path,delta)->reslicez(imgc,img2,ctrls,state,int(delta)))
+        guiobjects[:navigationctrls] = ctrls
     end
     # Create the x,y position reporter
     fnotify = Frame()
     push!(framec, fnotify)
     xypos = Label("")
-    xypos[:name] = "Label:xyposition"
     push!(fnotify, xypos)
+    guiobjects[:xypos] = xypos
     # Set up the rendering
     allocate_surface!(imgc, w, h)
     create_callbacks(imgc, img2)
@@ -287,8 +288,6 @@ function display{A<:AbstractArray}(img::A; proplist...)
 #     end
     # render the initial state
     rerender(imgc, img2)
-    Gtk.init!(imgc.c)
-    resize(imgc, img2)
     imgc, img2
 end
 
@@ -411,20 +410,11 @@ function create_callbacks(imgc, img2)
     # Handle scroll events (pan and zoom)
     signal_connect(scroll_cb, c, "scroll-event", Cint, (Ptr{Gtk.GdkEventScroll},), 0, data)
     # Handle key press events
-    signal_connect(key_cb, c, "key-press-event", Cint, (Ptr{Gtk.GdkEventKey},), 0, data)
+    signal_connect(key_cb, toplevel(c), "key-press-event", Cint, (Ptr{Gtk.GdkEventKey},), 0, data)
     # Blank the x,y position label when pointer leaves Canvas
-    # FIXME: find a widget by its name?
-#   win = gdk_window(c)
-#   xypos = find_object(win, "Label:xyposition")
-    signal_connect(leave_cb, c, "leave-notify-event", Cint, (Ptr{Gtk.GdkEventCrossing},)) # 0, xypos
-    # Bind keys to zoom
-#     bind(win, "<Control-Up>", path->zoomwheel(imgc,img2,-1,pointerxy(win)...))
-#     bind(win, "<Control-Down>", path->zoomwheel(imgc,img2,1,pointerxy(win)...))
-    # Bind arrow keys to pan
-#     bind(win, "<Up>", path->panvert(imgc,img2,-1))
-#     bind(win, "<Down>", path->panvert(imgc,img2,1))
-#     bind(win, "<Left>", path->panhorz(imgc,img2,-1))
-#     bind(win, "<Right>", path->panhorz(imgc,img2,1))
+    guiobjects = imgc.guiobjects
+    xypos = imgc.guiobjects[:xypos]
+    signal_connect(leave_cb, c, "leave-notify-event", Cint, (Ptr{Gtk.GdkEventCrossing},), 0, xypos)
 end
 
 
@@ -447,16 +437,29 @@ function mousedown_cb(ptr::Ptr, eventp::Ptr, data)
     int32(false)
 end
 
-# TODO: add Navigation scroll events
 function scroll_cb(ptr::Ptr, eventp::Ptr, data::CbData)
     event = unsafe_load(eventp)
     imgc, img2 = data.imgc, data.img2
-    if event.state & Gtk.GdkModifierType.GDK_CONTROL_MASK > 0
-        zoomwheel(imgc, img2, scrollpm(event.direction), event.x, event.y)
-    elseif event.state & Gtk.GdkModifierType.GDK_SHIFT_MASK > 0
-        panhorz(imgc, img2, scrollpm(event.direction))
+    dirn = scrollpm(event.direction)
+    if event.state & Gtk.GdkModifierType.GDK_MOD1_MASK > 0
+        # Navigation (Alt-scroll)
+        ctrls = get(imgc.guiobjects, :navigationctrls, nothing)
+        if ctrls != nothing
+            state = imgc.navigationstate
+            if event.state & Gtk.GdkModifierType.GDK_CONTROL_MASK > 0
+                reslicez(imgc, img2, ctrls, state, dirn)
+            else
+                reslicet(imgc, img2, ctrls, state, dirn)
+            end
+        end
     else
-        panvert(imgc, img2, scrollpm(event.direction))
+        if event.state & Gtk.GdkModifierType.GDK_CONTROL_MASK > 0
+            zoomwheel(imgc, img2, scrollpm(event.direction), event.x, event.y)
+        elseif event.state & Gtk.GdkModifierType.GDK_SHIFT_MASK > 0
+            panhorz(imgc, img2, scrollpm(event.direction))
+        else
+            panvert(imgc, img2, scrollpm(event.direction))
+        end
     end
     int32(false)
 end
@@ -465,17 +468,41 @@ scrollpm(direction::Integer) =
     direction == Gtk.GdkScrollDirection.GDK_SCROLL_UP ? -1 :
     direction == Gtk.GdkScrollDirection.GDK_SCROLL_DOWN ? 1 : error("Direction ", direction, " not recognized")
 
-# FIXME: for some reason, this never gets called despite setting up signal_connect
 function key_cb(ptr::Ptr, eventp::Ptr, data::CbData)
-    println("In key_cb")
     event = unsafe_load(eventp)
     imgc, img2 = data.imgc, data.img2
-    println("keyval: ", event.keyval, ", string: ", event.string)
-    int32(false)
+    ret = false
+    if event.state & Gtk.GdkModifierType.GDK_CONTROL_MASK > 0
+        # Zoom (with Ctrl)
+        x, y, mask = get_pointer(imgc.c)
+        if event.keyval == Gtk.GdkKeySyms.GDK_KEY_Up
+            zoomwheel(imgc, img2, -1, x, y)
+            ret = true
+        elseif event.keyval == Gtk.GdkKeySyms.GDK_KEY_Down
+            zoomwheel(imgc, img2, 1, x, y)
+            ret = true
+        end
+    else
+        # Panning
+        if event.keyval == Gtk.GdkKeySyms.GDK_KEY_Up
+            panvert(imgc, img2, -1)
+            ret = true
+        elseif event.keyval == Gtk.GdkKeySyms.GDK_KEY_Down
+            panvert(imgc, img2, 1)
+            ret = true
+        elseif event.keyval == Gtk.GdkKeySyms.GDK_KEY_Left
+            panhorz(imgc, img2, -1)
+            ret = true
+        elseif event.keyval == Gtk.GdkKeySyms.GDK_KEY_Right
+            panhorz(imgc, img2, 1)
+            ret = true
+        end
+    end
+    int32(ret)
 end
 
 function leave_cb(ptr::Ptr, eventp::Ptr, xypos)
-#   xypos[:label] = ""
+    xypos[:label] = ""
     int32(false)
 end
 
