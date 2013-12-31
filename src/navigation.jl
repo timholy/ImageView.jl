@@ -2,6 +2,9 @@
 
 module Navigation
 
+import Gtk
+using Gtk.ShortNames
+
 ## Type for holding GUI state
 # This specifies a particular 2d slice from a possibly-4D image
 type NavigationState
@@ -48,93 +51,115 @@ NavigationControls() = NavigationControls(nothing, nothing, nothing, nothing,
                                           nothing, nothing, nothing, nothing,
                                           nothing, nothing, nothing)
 
-# f is a TkFrame
-function init_navigation!(f, ctrls::NavigationControls, state::NavigationState, showframe::Function)
-#     btnsz, pad = widget_size()
-#     stop = trues(btnsz)
-#     mask = copy(stop)
-#     stop[[1,btnsz[1]],:] = false
-#     stop[:,[1,btnsz[2]]] = false
-#     bkg = "gray70"
-#     icon = Tk.Image(stop, mask, bkg, "black")
-#     ctrls.stop = Button(f, icon)
-#     bind(ctrls.stop, "command", path -> stop_playing!(state))
-#     local zindex
-#     local tindex
-#     local stopindex
-#     havez = state.zmax > 1
-#     havet = state.tmax > 1
-#     zindex = 1:6
-#     stopindex = 7
-#     tindex = 8:13
-#     if !havez
-#         stopindex = 1
-#         tindex = 2:7
-#     end
-#     grid(ctrls.stop, 1, stopindex, padx=3*pad, pady=pad)
-#     win = toplevel(f)
+# g is a container (e.g., Grid) for all the navigation controls)
+function init_navigation!(g, ctrls::NavigationControls, state::NavigationState, showframe::Function)
+    btnsz, pad = widget_size()
+    # Build the stop button
+    bkg = Gtk.RGB(0xb0, 0xb0, 0xb0)
+    blk = Gtk.RGB(0x00, 0x00, 0x00)
+    stopicon = fill(blk, btnsz)
+    stopicon[[1,btnsz[1]],:] = bkg
+    stopicon[:,[1,btnsz[2]]] = bkg
+    icon = Pixbuf(data=stopicon, has_alpha=false)
+    ctrls.stop = Button(Gtk.Image(icon))
+    ctrls.stop[:border_width] = pad
+    signal_connect(ctrls.stop, "clicked") do widget
+        stop_playing!(state)
+    end
+    # Determine the button layout. This is a bit complex because
+    # the arrangement of buttons depends on whether we have z and/or t information
+    local zindex
+    local tindex
+    local stopindex
+    havez = state.zmax > 1
+    havet = state.tmax > 1
+    zindex = 1:6
+    stopindex = 7
+    tindex = 8:13
+    if !havez
+        stopindex = 1
+        tindex = 2:7
+    end
+    g[stopindex, 1] = ctrls.stop
+#     g[ctrls.stop, :margin_left] = 3*pad
+#     g[ctrls.stop, :margin_right] = 3*pad
+#     g[ctrls.stop, :margin_top] = pad
+#     g[ctrls.stop, :margin_bottom] = pad
+    win = toplevel(g)
 #     if havez || havet
 #         bind(win, "<space>", path->stop_playing!(state))
 #     end
-#     if havez
-#         callback = (path->stepz(1,ctrls,state,showframe), path->playz(1,ctrls,state,showframe), 
-#             path->playz(-1,ctrls,state,showframe), path->stepz(-1,ctrls,state,showframe),
-#             path->setz(ctrls,state,showframe), path->scalez(ctrls,state,showframe))
-#         ctrls.stepup, ctrls.playup, ctrls.playdown, ctrls.stepdown, ctrls.textz, ctrls.editz, ctrls.scalez = 
-#             addbuttons(f, btnsz, bkg, pad, zindex, "z", callback, 1:state.zmax)
-#         bind(win, "<Alt-Up>", path->stepz(1,ctrls,state,showframe))
-#         bind(win, "<Alt-Down>", path->stepz(-1,ctrls,state,showframe))
-#         bind(win, "<Alt-Shift-Up>", path->playz(1,ctrls,state,showframe))
-#         bind(win, "<Alt-Shift-Down>", path->playz(-1,ctrls,state,showframe))
-#         updatez(ctrls, state)
-#     end
-#     if havet
-#         callback = (path->stept(-1,ctrls,state,showframe), path->playt(-1,ctrls,state,showframe), 
-#             path->playt(1,ctrls,state,showframe), path->stept(1,ctrls,state,showframe),
-#             path->sett(ctrls,state,showframe), path->scalet(ctrls,state,showframe))
-#         ctrls.stepback, ctrls.playback, ctrls.playfwd, ctrls.stepfwd, ctrls.textt, ctrls.editt, ctrls.scalet = 
-#             addbuttons(f, btnsz, bkg, pad, tindex, "t", callback, 1:state.tmax)
-#         bind(win, "<Alt-Right>", path->stept(1,ctrls,state,showframe))
-#         bind(win, "<Alt-Left>", path->stept(-1,ctrls,state,showframe))
-#         bind(win, "<Alt-Shift-Right>", path->playt(1,ctrls,state,showframe))
-#         bind(win, "<Alt-Shift-Left>", path->playt(-1,ctrls,state,showframe))
-#         updatet(ctrls, state)
-#     end
-#     # Context menu for settings
-#     menu = Menu(f)
-#     menu_fps = menu_add(menu, "Playback speed...", path -> set_fps!(state))
-#     tk_popup(f, menu)
+    if havez
+        callback = (obj->stepz(1,ctrls,state,showframe), obj->playz(1,ctrls,state,showframe), 
+            obj->playz(-1,ctrls,state,showframe), obj->stepz(-1,ctrls,state,showframe),
+            obj->setz(ctrls,state,showframe), obj->scalez(ctrls,state,showframe))
+        ctrls.stepup, ctrls.playup, ctrls.playdown, ctrls.stepdown, ctrls.textz, ctrls.editz, ctrls.scalez = 
+            addbuttons(g, btnsz, bkg, pad, zindex, "z", callback, 1:state.zmax)
+#         bind(win, "<Alt-Up>", obj->stepz(1,ctrls,state,showframe))
+#         bind(win, "<Alt-Down>", obj->stepz(-1,ctrls,state,showframe))
+#         bind(win, "<Alt-Shift-Up>", obj->playz(1,ctrls,state,showframe))
+#         bind(win, "<Alt-Shift-Down>", obj->playz(-1,ctrls,state,showframe))
+        updatez(ctrls, state)
+    end
+    if havet
+        callback = (obj->stept(-1,ctrls,state,showframe), obj->playt(-1,ctrls,state,showframe), 
+            obj->playt(1,ctrls,state,showframe), obj->stept(1,ctrls,state,showframe),
+            obj->sett(ctrls,state,showframe), obj->scalet(ctrls,state,showframe))
+        ctrls.stepback, ctrls.playback, ctrls.playfwd, ctrls.stepfwd, ctrls.textt, ctrls.editt, ctrls.scalet = 
+            addbuttons(g, btnsz, bkg, pad, tindex, "t", callback, 1:state.tmax)
+#         bind(win, "<Alt-Right>", obj->stept(1,ctrls,state,showframe))
+#         bind(win, "<Alt-Left>", obj->stept(-1,ctrls,state,showframe))
+#         bind(win, "<Alt-Shift-Right>", obj->playt(1,ctrls,state,showframe))
+#         bind(win, "<Alt-Shift-Left>", obj->playt(-1,ctrls,state,showframe))
+        updatet(ctrls, state)
+    end
+    # Context menu for settings
+    menu = Menu()
+    signal_connect(parent(g), "button_press_event") do widget, event
+        if event.button == 3 && event.event_type == EventType.GDK_BUTTON_PRESS
+            popup(menu, event)
+        end
+    end
+    playback = MenuItem("Playback speed...")
+    signal_connect(playback, "activate") do widget
+        set_fps!(state)
+    end
+    push!(menu, playback)
 end
 
 # GUI to set the frame rate
 function set_fps!(state::NavigationState)
-    win = Toplevel()
-    f = Frame(win)
-    pack(f, expand=true, fill="both")
+    l = Label("Frames per second:")
+    e = Entry()
+    e[:text] = string(state.fps)
+    ok = Button("OK")
+    cancel = Button("Cancel")
     
-    l = Label(f, "Frames per second:")
-    e = Entry(f, width=5)
-    set_value(e, string(state.fps))
-    ok = Button(f, "OK")
-    cancel = Button(f, "Cancel")
-    
-    grid(l, 1, 1)
-    grid(e, 1, 2, pady=5)
-    grid(cancel, 2, 1)
-    grid(ok, 2, 2)
+    g = Table(2, 2)
+    win = Window("Set frame rate",200,60)
+    push!(win, g)
+    g[1,1] = l
+    g[2,1] = e
+    g[1,2] = cancel
+    g[2,2] = ok
+    showall(win)
     
     function set_close!(state::NavigationState)
         try
-            fps = float64(get_value(e))
+            fps = float64(e[:text,String])
             state.fps = fps
             destroy(win)
         catch
-            set_value(e, string(state.fps))
+            e[:text] = string(state.fps)
         end
     end
-    bind(e, "<Return>", path->set_close!(state))
-    bind(ok, "command", path->set_close!(state))
-    bind(cancel, "command", path->destroy(win))
+    signal_connect(ok, "clicked") do widget
+        set_close!(state)
+        destroy(win)
+    end
+    signal_connect(cancel, "clicked") do widget
+        destroy(win)
+    end
 end
 
 function widget_size()
@@ -165,52 +190,64 @@ end
 # index contains the grid position of each object
 # orientation is "t" or "z"
 # callback is an array of 5 entries, the 5th being the edit box
-function addbuttons(f, sz, bkg, pad, index, orientation, callback, rng)
+function addbuttons(g, sz, bkg, pad, index, orientation, callback, rng)
     rotflag = orientation == "z"
     ctrl = Array(Any, 7)
     ctrl[1], ctrl[2], ctrl[3], ctrl[4] = arrowheads(sz, rotflag)
-    mask = trues(sz)
-    const color = ("black", "green", "green", "black")
+    buf = Array(Gtk.RGB, sz)
+    const color = (Gtk.RGB(0,0,0), Gtk.RGB(0,0xff,0), Gtk.RGB(0,0xff,0), Gtk.RGB(0,0,0))
     ibutton = [1,2,5,6]
     for i = 1:4
-        icon = Tk.Image(ctrl[i], mask, bkg, color[i])
-        b = Button(f, icon)
-        grid(b, 1, index[ibutton[i]], padx=pad, pady=pad)
-        bind(b, "command", callback[i])
+        fill!(buf, bkg)
+        buf[ctrl[i]] = color[i]
+        icon = Pixbuf(data=copy(buf), has_alpha=false)
+        b = Button(Image(icon))
+        g[index[ibutton[i]],1] = b
+#         g[b, :padding] = pad
+#         b[:xpad] = b[:ypad] = pad
+        b[:border_width] = pad
+        signal_connect(callback[i], b, "clicked")
         ctrl[i] = b
     end
-    ctrl[5] = Label(f, orientation*":")
-    grid(ctrl[5], 1, index[3], padx=pad, pady=pad)
-    ctrl[6] = Entry(f, "1")
-    configure(ctrl[6], width=5)
-    grid(ctrl[6], 1, index[4], padx=pad, pady=pad)
-    bind(ctrl[6], "<Return>", callback[5])
-    ctrl[7] = Slider(f, rng)
-    grid(ctrl[7], 2, index, sticky="ew", padx=pad)
-    bind(ctrl[7], "command", callback[6])
+    l = Label(orientation*":")
+    g[index[3],1] = l
+    l[:xpad] = l[:ypad] = pad
+    ctrl[5] = l
+    e = Entry()
+    e[:text] = "1"
+#     configure(ctrl[6], width=5)
+    g[index[4],1] = e
+#     e[:padding] = pad
+    signal_connect(callback[5], e, "activate")
+    ctrl[6] = e
+    s = Scale(false, rng)
+    g[index,2] = s
+#     s[:padding] = pad
+    signal_connect(callback[6], s, "value-changed")
+    ctrl[7] = s
     tuple(ctrl...)
 end
 
 function updatez(ctrls, state)
-    set_value(ctrls.editz, string(state.z))
-    set_value(ctrls.scalez, state.z)
+    ctrls.editz[:text] = string(state.z)
+    G_.value(ctrls.scalez, state.z)
     enabledown = state.z > 1
-    set_enabled(ctrls.stepdown, enabledown)
-    set_enabled(ctrls.playdown, enabledown)
+    ctrls.stepdown[:sensitive] = enabledown
+    ctrls.playdown[:sensitive] = enabledown
     enableup = state.z < state.zmax
-    set_enabled(ctrls.stepup, enableup)
-    set_enabled(ctrls.playup, enableup)
+    ctrls.stepup[:sensitive] = enableup
+    ctrls.playup[:sensitive] = enableup
 end
 
 function updatet(ctrls, state)
-    set_value(ctrls.editt, string(state.t))
-    set_value(ctrls.scalet, state.t)
+    ctrls.editt[:text] = string(state.t)
+    G_.value(ctrls.scalet, state.t)
     enableback = state.t > 1
-    set_enabled(ctrls.stepback, enableback)
-    set_enabled(ctrls.playback, enableback)
+    ctrls.stepback[:sensitive] = enableback
+    ctrls.playback[:sensitive] = enableback
     enablefwd = state.t < state.tmax
-    set_enabled(ctrls.stepfwd, enablefwd)
-    set_enabled(ctrls.playfwd, enablefwd)
+    ctrls.stepfwd[:sensitive] = enablefwd
+    ctrls.playfwd[:sensitive] = enablefwd
 end
 
 function incrementz(inc, ctrls, state, showframe)
@@ -238,7 +275,7 @@ function playz(inc, ctrls, state, showframe)
 end
 
 function setz(ctrls,state, showframe)
-    zstr = get_value(ctrls.editz)
+    zstr = G_.value(ctrls.editz)
     try
         val = int(zstr)
         state.z = val
@@ -250,7 +287,7 @@ function setz(ctrls,state, showframe)
 end
 
 function scalez(ctrls, state, showframe)
-    state.z = int(get_value(ctrls.scalez))
+    state.z = int(G_.value(ctrls.scalez))
     updatez(ctrls, state)
     showframe(state)
 end
@@ -280,7 +317,7 @@ function playt(inc, ctrls, state, showframe)
 end
 
 function sett(ctrls,state, showframe)
-    tstr = get_value(ctrls.editt)
+    tstr = G_.value(ctrls.editt)
     try
         val = int(tstr)
         state.t = val
@@ -292,7 +329,7 @@ function sett(ctrls,state, showframe)
 end
 
 function scalet(ctrls, state, showframe)
-    state.t = int(get_value(ctrls.scalet))
+    state.t = int(G_.value(ctrls.scalet))
     updatet(ctrls, state)
     showframe(state)
 end

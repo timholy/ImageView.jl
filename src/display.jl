@@ -125,7 +125,7 @@ function ImageSlice2d(img::AbstractArray, props::Dict)
     p = spatialpermutation(xy, img)
     xdim = cs[p[1]]
     ydim = cs[p[2]]
-    zdim = (sd == 2) ? 0 : cs[setdiff(1:3, p)][1]
+    zdim = (sd == 2) ? 0 : cs[p[3]]
     tdim = timedim(img)
     # Deal with pixelspacing here
     if !haskey(props, :pixelspacing)
@@ -251,9 +251,10 @@ function display{A<:AbstractArray}(img::A; proplist...)
         ctrls = NavigationControls()
         state = NavigationState(zmax, tmax)
         showframe = state -> reslice(imgc, img2, state)
-        fctrls = Frame()
-        push!(framec, fcntrls)
-        init_navigation!(fctrls, ctrls, state, showframe)
+        gctrls = Grid()
+        fctrls = Frame(gctrls)
+        push!(framec, fctrls)
+        init_navigation!(gctrls, ctrls, state, showframe)
         if zmax > 1
             try
                 # Replace the z label with the name of the z coordinate
@@ -276,7 +277,7 @@ function display{A<:AbstractArray}(img::A; proplist...)
     # Set up the rendering
     allocate_surface!(imgc, w, h)
     create_callbacks(imgc, img2)
-    c.mouse.motion = (path,x,y) -> updatexylabel(xypos, imgc, x, y)
+    c.mouse.motion = (widget, event) -> updatexylabel(xypos, imgc, event.x, event.y)
     # TODO: implement context menus
 #     if imgc.render! == uint32color! && colorspace(img) == "Gray"
 #         menu = Menu(framec)
@@ -288,6 +289,7 @@ function display{A<:AbstractArray}(img::A; proplist...)
 #     end
     # render the initial state
     rerender(imgc, img2)
+    showall(win)
     imgc, img2
 end
 
@@ -391,58 +393,44 @@ function delete_annotations!(imgc::ImageCanvas)
     redraw(imgc)
 end
 
-type CbData
-    imgc::ImageCanvas
-    img2::ImageSlice2d
-end
-
 function create_callbacks(imgc, img2)
     c = canvas(imgc)
     # Set up the drawing callbacks
     c.draw = x -> resize(imgc, img2)
     # Receive additional event types
     add_events(c, Gtk.GdkEventMask.GDK_SCROLL_MASK | Gtk.GdkEventMask.GDK_KEY_PRESS_MASK | Gtk.GdkEventMask.GDK_LEAVE_NOTIFY_MASK)
-    # Supporting double-clicks means we need to handle our own mouse button presses
-    data = CbData(imgc, img2)
-    on_signal_button_press(mousedown_cb, c, 0, data)
-    # Bind mouse clicks to rubberband zoom
-    c.mouse.button1press = (c, x, y) -> rubberband_start(c, x, y, (c, bb) -> zoombb(imgc, img2, bb))
+    # Left-click
+    c.mouse.button1press = (widget, event) -> begin
+        if event.event_type == EventType.GDK_DOUBLE_BUTTON_PRESS
+            zoom_reset(imgc, img2)
+        elseif event.event_type == EventType.GDK_BUTTON_PRESS
+            rubberband_start(c, event.x, event.y, (c, bb) -> zoombb(imgc, img2, bb))
+        end
+    end
     # Handle scroll events (pan and zoom)
-    signal_connect(scroll_cb, c, "scroll-event", Cint, (Ptr{Gtk.GdkEventScroll},), 0, data)
+    signal_connect(c, :scroll_event) do widget, event
+        scroll_cb(widget, event, imgc, img2)
+    end
     # Handle key press events
-    signal_connect(key_cb, toplevel(c), "key-press-event", Cint, (Ptr{Gtk.GdkEventKey},), 0, data)
-    # Blank the x,y position label when pointer leaves Canvas
+    signal_connect(c, :key_press_event) do widget, event
+        key_cb(widget, event, imgc, img2)
+    end
+    # Blank the x,y position label when pointer leaves the Canvas
     guiobjects = imgc.guiobjects
     xypos = imgc.guiobjects[:xypos]
-    signal_connect(leave_cb, c, "leave-notify-event", Cint, (Ptr{Gtk.GdkEventCrossing},), 0, xypos)
+    signal_connect(c, :leave_notify_event) do widget, event
+        xypos[:label] = ""
+        false
+    end
 end
 
 
 ### Callback handling ###
-function mousedown_cb(ptr::Ptr, eventp::Ptr, data)
-    event = unsafe_load(eventp)
-    imgc, img2 = data.imgc, data.img2
-    mouse = imgc.c.mouse
-    if event.button == 1
-        if event.event_type == Gtk.GdkEventType.GDK_DOUBLE_BUTTON_PRESS
-            zoom_reset(imgc, img2)
-        else
-            mouse.button1press(mouse.widget, event.x, event.y)
-        end
-    elseif event.button == 2
-        mouse.button2press(mouse.widget, event.x, event.y)
-    elseif event.button == 3
-        mouse.button3press(mouse.widget, event.x, event.y)
-    end
-    int32(false)
-end
-
-function scroll_cb(ptr::Ptr, eventp::Ptr, data::CbData)
-    event = unsafe_load(eventp)
-    imgc, img2 = data.imgc, data.img2
+function scroll_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
     dirn = scrollpm(event.direction)
     if event.state & Gtk.GdkModifierType.GDK_MOD1_MASK > 0
         # Navigation (Alt-scroll)
+        # FIXME move to navigation??
         ctrls = get(imgc.guiobjects, :navigationctrls, nothing)
         if ctrls != nothing
             state = imgc.navigationstate
@@ -461,50 +449,62 @@ function scroll_cb(ptr::Ptr, eventp::Ptr, data::CbData)
             panvert(imgc, img2, scrollpm(event.direction))
         end
     end
-    int32(false)
+    false
 end
 
 scrollpm(direction::Integer) =
     direction == Gtk.GdkScrollDirection.GDK_SCROLL_UP ? -1 :
     direction == Gtk.GdkScrollDirection.GDK_SCROLL_DOWN ? 1 : error("Direction ", direction, " not recognized")
 
-function key_cb(ptr::Ptr, eventp::Ptr, data::CbData)
-    event = unsafe_load(eventp)
-    imgc, img2 = data.imgc, data.img2
+# FIXME: add (here or in navigation)
+#     if havez || havet
+#         bind(win, "<space>", path->stop_playing!(state))
+#     end
+#     if havez
+#         bind(win, "<Alt-Up>", path->stepz(1,ctrls,state,showframe))
+#         bind(win, "<Alt-Down>", path->stepz(-1,ctrls,state,showframe))
+#         bind(win, "<Alt-Shift-Up>", path->playz(1,ctrls,state,showframe))
+#         bind(win, "<Alt-Shift-Down>", path->playz(-1,ctrls,state,showframe))
+#         updatez(ctrls, state)
+#     end
+#     if havet
+#         bind(win, "<Alt-Right>", path->stept(1,ctrls,state,showframe))
+#         bind(win, "<Alt-Left>", path->stept(-1,ctrls,state,showframe))
+#         bind(win, "<Alt-Shift-Right>", path->playt(1,ctrls,state,showframe))
+#         bind(win, "<Alt-Shift-Left>", path->playt(-1,ctrls,state,showframe))
+#         updatet(ctrls, state)
+#     end
+function key_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
     ret = false
-    if event.state & Gtk.GdkModifierType.GDK_CONTROL_MASK > 0
+    if event.state & ModifierType.GDK_CONTROL_MASK > 0
         # Zoom (with Ctrl)
         x, y, mask = get_pointer(imgc.c)
-        if event.keyval == Gtk.GdkKeySyms.GDK_KEY_Up
+        if event.keyval == Key.Up
             zoomwheel(imgc, img2, -1, x, y)
             ret = true
-        elseif event.keyval == Gtk.GdkKeySyms.GDK_KEY_Down
+        elseif event.keyval == Key.Down
             zoomwheel(imgc, img2, 1, x, y)
             ret = true
         end
     else
         # Panning
-        if event.keyval == Gtk.GdkKeySyms.GDK_KEY_Up
+        if event.keyval == Key.Up
             panvert(imgc, img2, -1)
             ret = true
-        elseif event.keyval == Gtk.GdkKeySyms.GDK_KEY_Down
+        elseif event.keyval == Key.Down
             panvert(imgc, img2, 1)
             ret = true
-        elseif event.keyval == Gtk.GdkKeySyms.GDK_KEY_Left
+        elseif event.keyval == Key.Left
             panhorz(imgc, img2, -1)
             ret = true
-        elseif event.keyval == Gtk.GdkKeySyms.GDK_KEY_Right
+        elseif event.keyval == Key.Right
             panhorz(imgc, img2, 1)
             ret = true
         end
     end
-    int32(ret)
+    ret
 end
 
-function leave_cb(ptr::Ptr, eventp::Ptr, xypos)
-    xypos[:label] = ""
-    int32(false)
-end
 
 # This takes the already-rendered surface and paints it to the canvas
 function redraw(imgc::ImageCanvas)

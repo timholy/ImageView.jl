@@ -32,8 +32,8 @@ function rubberband_start(c::Canvas, x, y, callback_done::Function)
     ctxcopy = copy(r)
     rb = RubberBand(Vec2(x,y), Vec2(x,y), false)
     callbacks_old = (c.mouse.button1motion, c.mouse.button1release)
-    c.mouse.button1motion = (c, x, y) -> rubberband_move(c, rb, x, y, ctxcopy)
-    c.mouse.button1release = (c, x, y) -> rubberband_stop(c, rb, x, y, ctxcopy, callbacks_old, callback_done)
+    c.mouse.button1motion = (c, event) -> rubberband_move(c, rb, event.x, event.y, ctxcopy)
+    c.mouse.button1release = (c, event) -> rubberband_stop(c, rb, event.x, event.y, ctxcopy, callbacks_old, callback_done)
 end
 
 function rubberband_move(c::Canvas, rb::RubberBand, x, y, ctxcopy)
