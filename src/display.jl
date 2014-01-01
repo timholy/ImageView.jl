@@ -398,12 +398,12 @@ function create_callbacks(imgc, img2)
     # Set up the drawing callbacks
     c.draw = x -> resize(imgc, img2)
     # Receive additional event types
-    add_events(c, Gtk.GdkEventMask.GDK_SCROLL_MASK | Gtk.GdkEventMask.GDK_KEY_PRESS_MASK | Gtk.GdkEventMask.GDK_LEAVE_NOTIFY_MASK)
+    add_events(c, EventMask.SCROLL_MASK | EventMask.KEY_PRESS_MASK | EventMask.LEAVE_NOTIFY_MASK)
     # Left-click
     c.mouse.button1press = (widget, event) -> begin
-        if event.event_type == EventType.GDK_DOUBLE_BUTTON_PRESS
+        if event.event_type == EventType.DOUBLE_BUTTON_PRESS
             zoom_reset(imgc, img2)
-        elseif event.event_type == EventType.GDK_BUTTON_PRESS
+        elseif event.event_type == EventType.BUTTON_PRESS
             rubberband_start(c, event.x, event.y, (c, bb) -> zoombb(imgc, img2, bb))
         end
     end
@@ -428,22 +428,22 @@ end
 ### Callback handling ###
 function scroll_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
     dirn = scrollpm(event.direction)
-    if event.state & Gtk.GdkModifierType.GDK_MOD1_MASK > 0
+    if event.state & ModifierType.MOD1_MASK > 0
         # Navigation (Alt-scroll)
         # FIXME move to navigation??
         ctrls = get(imgc.guiobjects, :navigationctrls, nothing)
         if ctrls != nothing
             state = imgc.navigationstate
-            if event.state & Gtk.GdkModifierType.GDK_CONTROL_MASK > 0
+            if event.state & ModifierType.CONTROL_MASK > 0
                 reslicez(imgc, img2, ctrls, state, dirn)
             else
                 reslicet(imgc, img2, ctrls, state, dirn)
             end
         end
     else
-        if event.state & Gtk.GdkModifierType.GDK_CONTROL_MASK > 0
+        if event.state & ModifierType.CONTROL_MASK > 0
             zoomwheel(imgc, img2, scrollpm(event.direction), event.x, event.y)
-        elseif event.state & Gtk.GdkModifierType.GDK_SHIFT_MASK > 0
+        elseif event.state & ModifierType.SHIFT_MASK > 0
             panhorz(imgc, img2, scrollpm(event.direction))
         else
             panvert(imgc, img2, scrollpm(event.direction))
@@ -453,8 +453,8 @@ function scroll_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
 end
 
 scrollpm(direction::Integer) =
-    direction == Gtk.GdkScrollDirection.GDK_SCROLL_UP ? -1 :
-    direction == Gtk.GdkScrollDirection.GDK_SCROLL_DOWN ? 1 : error("Direction ", direction, " not recognized")
+    direction == ScrollDirection.UP ? -1 :
+    direction == ScrollDirection.DOWN ? 1 : error("Direction ", direction, " not recognized")
 
 # FIXME: add (here or in navigation)
 #     if havez || havet
@@ -476,7 +476,7 @@ scrollpm(direction::Integer) =
 #     end
 function key_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
     ret = false
-    if event.state & ModifierType.GDK_CONTROL_MASK > 0
+    if event.state & ModifierType.CONTROL_MASK > 0
         # Zoom (with Ctrl)
         x, y, mask = get_pointer(imgc.c)
         if event.keyval == Key.Up

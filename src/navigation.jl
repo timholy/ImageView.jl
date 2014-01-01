@@ -116,7 +116,7 @@ function init_navigation!(g, ctrls::NavigationControls, state::NavigationState, 
     # Context menu for settings
     menu = Menu()
     signal_connect(parent(g), "button_press_event") do widget, event
-        if event.button == 3 && event.event_type == EventType.GDK_BUTTON_PRESS
+        if event.button == 3 && event.event_type == EventType.BUTTON_PRESS
             popup(menu, event)
         end
     end
