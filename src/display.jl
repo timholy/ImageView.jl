@@ -269,24 +269,27 @@ function display{A<:AbstractArray}(img::A; proplist...)
         guiobjects[:navigationctrls] = ctrls
     end
     # Create the x,y position reporter
-    fnotify = Frame()
-    push!(framec, fnotify)
     xypos = Label("")
-    push!(fnotify, xypos)
+#     G_.justify(xypos, Justification.RIGHT)
+#     G_.alignment(xypos, 1.0, 0.5)
+    push!(framec, xypos)
     guiobjects[:xypos] = xypos
     # Set up the rendering
     allocate_surface!(imgc, w, h)
     create_callbacks(imgc, img2)
     c.mouse.motion = (widget, event) -> updatexylabel(xypos, imgc, event.x, event.y)
-    # TODO: implement context menus
-#     if imgc.render! == uint32color! && colorspace(img) == "Gray"
-#         menu = Menu(framec)
-#         clim = climdefault(img)
-#         cs = ImageContrast.ContrastSettings(clim[1], clim[2])
-#         imgc.render! = (buf,img) -> uint32color!(buf, img, scaleminmax(img, cs.min, cs.max))
-#         menu_contrast = menu_add(menu, "Contrast...", path -> ImageContrast.contrastgui(img2.imslice, cs, x->redraw(imgc, img2)))
-#         tk_popup(c, menu)
-#     end
+    if imgc.render! == uint32color! && colorspace(img) == "Gray"
+        popupmenu = Menu()
+        contrast = MenuItem("Adjust contrast...")
+        push!(popupmenu, contrast)
+        c.mouse.button3press = (widget,event) -> popup(popupmenu, event)
+        clim = climdefault(img)
+        cs = ImageContrast.ContrastSettings(clim[1], clim[2])
+        imgc.render! = (buf,img) -> uint32color!(buf, img, scaleminmax(img, cs.min, cs.max))
+        signal_connect(contrast, :activate) do widget
+            ImageContrast.contrastgui(img2.imslice, cs, x->redraw(imgc, img2))
+        end
+    end
     # render the initial state
     rerender(imgc, img2)
     showall(win)

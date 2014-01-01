@@ -1,8 +1,7 @@
 module ImageContrast
 
-# using Base.Graphics
 using Cairo
-using Tk
+using Gtk.ShortNames
 using Winston
 using Images
 
@@ -22,11 +21,11 @@ end
 #    callback(cs)
 # The callback's job is to replot the image with the new contrast settings
 function contrastgui{T}(img::AbstractArray{T}, cs::ContrastSettings, callback::Function)
-    win = Toplevel("Adjust contrast", 500, 300, true)
+    win = Window("Adjust contrast", 500, 300)
     contrastgui(win, img, cs, callback)
 end
 
-function contrastgui{T}(win::Tk.TTk_Container, img::AbstractArray{T}, cs::ContrastSettings, callback::Function)
+function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callback::Function)
     # Get initial values
     dat = img[:,:]
     immin = minfinite(dat)
@@ -41,39 +40,40 @@ function contrastgui{T}(win::Tk.TTk_Container, img::AbstractArray{T}, cs::Contra
     cs.max = convert(T, cs.max)
 
     # Set up GUI
-    fwin = Frame(win)
-    w = width(win.w)
-    h = height(win.w)
-    pack(fwin, expand=true, fill="both")
-
-    max_slider = Slider(fwin, int(floor(immin)):int(ceil(immax))) # won't work for small float ranges
-    set_value(max_slider, int(ceil(cs.max)))
-    chist = Canvas(fwin, 2w/3, h)
-    min_slider = Slider(fwin, int(floor(immin)):int(ceil(immax))) # won't work for small float ranges
-    set_value(min_slider, int(floor(cs.min)))
-
-    grid(max_slider, 1, 1, sticky="ew", padx=5)
-    grid(chist, 2, 1, sticky="nsew", padx=5)
-    grid(min_slider, 3, 1, sticky="ew", padx=5)
-    grid_columnconfigure(fwin, 1, weight=1)
-    grid_rowconfigure(fwin, 2, weight=1)
     
-    emax = Entry(fwin, width=10)
-    emin = Entry(fwin, width=10)
-    set_value(emax, string(float64(cs.max)))
-    set_value(emin, string(float64(cs.min)))
+    g = Grid() #Table(2,3)
+    push!(win, g)
+    w = width(win)
+    h = height(win)
+
+    slider_range = float64(immin):float64(immax-immin)/200:float64(immax)
+    max_slider = Scale(false,slider_range)
+    G_.value(max_slider, float64(cs.max))
+    chist = Canvas(int(2w/3), h)
+    min_slider = Scale(false,slider_range)
+    G_.value(min_slider, float64(cs.min))
+
+    g[1,1] = max_slider
+    g[1,2] = chist
+    g[1,3] = min_slider
+    chist[:expand] = true
+    
+    emax = Entry()
+    emin = Entry()
+    emax[:text] = string(float64(cs.max))
+    emin[:text] = string(float64(cs.min))
+    g[2,1] = emax
+    g[2,3] = emin
+    
 #    emax[:textvariable] = max_slider[:variable]
 #    emin[:textvariable] = min_slider[:variable]
     
-    fbuttons = Frame(fwin)
-    zoom = Button(fbuttons, "Zoom")
-    full = Button(fbuttons, "Full range")
-    grid(zoom, 1, 1, sticky="we")
-    grid(full, 2, 1, sticky="we")
-    
-    grid(emax, 1, 2, sticky="nw")
-    grid(fbuttons, 2, 2, sticky="nw")
-    grid(emin, 3, 2, sticky="nw")
+    bx = ButtonBox(true)
+    zoom = Button("Zoom")
+    full = Button("Full range")
+    push!(bx, zoom)
+    push!(bx, full)
+    g[2,2] = bx
     
     # Prepare the histogram
     nbins = iceil(min(sqrt(length(img)), 200))
@@ -84,13 +84,12 @@ function contrastgui{T}(win::Tk.TTk_Container, img::AbstractArray{T}, cs::Contra
     
     function rerender()
         pcopy = deepcopy(cdata.phist)
-        bb = Winston.limits(cdata.phist.content1)
+        bb = Winston.limits(cdata.phist)
         add(pcopy, Curve([cs.min, cs.max], [bb.ymin, bb.ymax], "linewidth", 10, "color", "white"))
         add(pcopy, Curve([cs.min, cs.max], [bb.ymin, bb.ymax], "linewidth", 5, "color", "black"))
         Winston.display(chist, pcopy)
         reveal(chist)
         callback(cs)
-        Tk.update()
     end
     # If we have a image sequence, we might need to generate a new histogram.
     # So this function will be returned to the caller
@@ -106,66 +105,54 @@ function contrastgui{T}(win::Tk.TTk_Container, img::AbstractArray{T}, cs::Contra
     setrange(cdata.chist, cdata.phist, cdata.imgmin, cdata.imgmax, rerender) 
 
     # All bindings
-    bind(emin, "<Return>") do path
+    signal_connect(emin, "activate") do widget
         try
-            my_min = float64(get_value(emin))
-            my_max = float64(get_value(emax))
-            # Don't let values cross
-            my_max = my_max < my_min ? my_min + 0.01 : my_max # offset is arbitrary
-            cs.min = convertsafely(typeof(cs.min), my_min)
-            cs.max = convertsafely(typeof(cs.max), my_max)
-            set_value(emax, string(my_max)) # caution: each widget gets it's own type
-            set_value(min_slider, my_min)
-            set_value(max_slider, my_max)
-            rerender()
+            my_min = float64(emin[:text,String])
+            my_max = float64(emax[:text,String])
+            update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
         catch
-            set_value(emin, string(cs.min))
+            emin[:text] = string(cs.min)
         end
     end
-    bind(emax, "<Return>") do path
+    signal_connect(emax, "activate") do widget
         try
-            my_min = float64(get_value(emin))
-            my_max = float64(get_value(emax))
-            # Don't let values cross
-            my_min = my_min > my_max ? my_max - 0.01 : my_min # offset is arbitrary
-            cs.min = convertsafely(typeof(cs.min), my_min)
-            cs.max = convertsafely(typeof(cs.max), my_max)
-            set_value(emin, string(my_min))
-            set_value(min_slider, my_min)
-            set_value(max_slider, my_max)
-            rerender()
+            my_min = float64(emin[:text,String])
+            my_max = float64(emax[:text,String])
+            update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
         catch
-            set_value(emax, string(cs.max))
+            emax[:text] = string(cs.max)
         end
     end
-    bind(min_slider, "command") do path
-        my_min = float64(min_slider[:value])
-        my_max = float64(max_slider[:value])
-        # Don't let values cross
-        my_max = my_max < my_min ? my_min + 0.01 : my_max # offset is arbitrary
-        cs.min = convertsafely(typeof(cs.min), my_min)
-        cs.max = convertsafely(typeof(cs.max), my_max)
-        set_value(emin, string(my_min))
-        set_value(emax, string(my_max))
-        set_value(max_slider, my_max)
-        rerender()
+    signal_connect(min_slider, "value-changed") do widget
+        my_min = G_.value(min_slider)
+        my_max = G_.value(max_slider)
+        update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
     end
-    bind(max_slider, "command") do path
-        my_min = float64(min_slider[:value])
-        my_max = float64(max_slider[:value])
-        # Don't let values cross
-        my_min = my_min > my_max ? my_max - 0.01 : my_min # offset is arbitrary
-        cs.min = convertsafely(typeof(cs.min), my_min)
-        cs.max = convertsafely(typeof(cs.max), my_max)
-        set_value(emin, string(my_min))
-        set_value(emax, string(my_max))
-        set_value(min_slider, my_min)
-        rerender()
+    signal_connect(max_slider, "value-changed") do widget
+        my_min = G_.value(min_slider)
+        my_max = G_.value(max_slider)
+        update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
     end
-    bind(zoom, "command", path -> setrange(cdata.chist, cdata.phist, cdata.imgmin, cdata.imgmax, rerender))
-    bind(full, "command", path -> setrange(cdata.chist, cdata.phist, min(cdata.imgmin, cs.min), max(cdata.imgmax, cs.max), rerender))
-
+    signal_connect(zoom, "clicked") do widget
+        setrange(cdata.chist, cdata.phist, cdata.imgmin, cdata.imgmax, rerender)
+    end
+    signal_connect(full, "clicked") do widget
+        setrange(cdata.chist, cdata.phist, min(cdata.imgmin, cs.min), max(cdata.imgmax, cs.max), rerender)
+    end
+    showall(win)
     replaceimage
+end
+
+function update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
+    # Don't let values cross
+    my_max = my_max < my_min ? my_min + 0.01 : my_max # offset is arbitrary
+    cs.min = convertsafely(typeof(cs.min), my_min)
+    cs.max = convertsafely(typeof(cs.max), my_max)
+    emin[:text] = string(my_min)
+    emax[:text] = string(my_max)
+    G_.value(min_slider, my_min)
+    G_.value(max_slider, my_max)
+    rerender()
 end
 
 convertsafely{T<:Integer}(::Type{T}, val) = convert(T, round(val))

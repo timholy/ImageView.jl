@@ -275,7 +275,7 @@ function playz(inc, ctrls, state, showframe)
 end
 
 function setz(ctrls,state, showframe)
-    zstr = G_.value(ctrls.editz)
+    zstr = ctrls.editz[:text,String]
     try
         val = int(zstr)
         state.z = val
@@ -317,7 +317,7 @@ function playt(inc, ctrls, state, showframe)
 end
 
 function sett(ctrls,state, showframe)
-    tstr = G_.value(ctrls.editt)
+    tstr = ctrls.editt[:text,String]
     try
         val = int(tstr)
         state.t = val
