@@ -1,9 +1,5 @@
 using ImageView.Navigation
 
-import Base: show
-import Base.Graphics: width, height, fill, set_coords
-import Gtk: toplevel
-
 # Dialog-based image opening
 import Images.imread
 # imread() = imread(GtkFileChooserDialog())  # TODO
@@ -242,7 +238,6 @@ function display{A<:AbstractArray}(img::A; proplist...)
     push!(win, framec)
 #     c = Canvas(ww, wh)
     c = Canvas()
-    G_.double_buffered(c, true)
     push!(framec, c)
     guiobjects[:canvas] = c
     framec[c,:expand] = true
@@ -312,8 +307,9 @@ function display{A<:AbstractArray}(imgc::ImageCanvas, img::A; proplist...)
     allocate_surface!(imgc, w, h)
     create_callbacks(imgc, img2)
     rerender(imgc, img2)
-    resize(imgc, img2)
-#     Tk.configure(imgc.c)
+    draw(imgc.c) do obj
+        resize(imgc, img2)
+    end
     imgc, img2
 end
 
@@ -334,32 +330,25 @@ function display{A<:AbstractArray}(c::Canvas, img::A; proplist...)
     allocate_surface!(imgc, w, h)
     create_callbacks(imgc, img2)
     rerender(imgc, img2)
-    resize(imgc, img2)
-#     Tk.configure(imgc.c)
+    draw(c) do obj
+        resize(imgc, img2)
+    end
     imgc, img2
 end
 
 function canvasgrid(ny, nx; w = 800, h = 600, pad=0, name="ImageView")
-    win = Toplevel(name, w, h)
-    frame = Frame(win)
-    grid(frame, 1, 1, sticky="nsew")
-    grid_rowconfigure(win, 1, weight=1)
-    grid_columnconfigure(win, 1, weight=1)
-    c = Array(Canvas, ny, nx)
-    for j = 1:nx
-        for i = 1:ny
-            c1 = Canvas(frame, w/nx, h/ny)
-            grid(c1, i, j, sticky="nsew", padx=pad, pady=pad)
-            c[i,j] = c1
+    g = Grid()
+    win = Window(g, name, w, h)
+    g[:expand] = true
+    for i = 1:nx
+        for j = 1:ny
+            c1 = Canvas()
+            c1[:expand] = true
+            g[i,j] = c1
         end
     end
-    for j = 1:nx
-        grid_columnconfigure(frame, j, weight=1)
-    end
-    for i = 1:ny
-        grid_rowconfigure(frame, i, weight=1)
-    end
-    c
+    showall(win)
+    g
 end
 
 function annotate!(imgc::ImageCanvas, img2::ImageSlice2d, ann; anchored::Bool=true)
@@ -420,11 +409,15 @@ function create_callbacks(imgc, img2)
         key_cb(widget, event, imgc, img2)
     end
     # Blank the x,y position label when pointer leaves the Canvas
-    guiobjects = imgc.guiobjects
-    xypos = imgc.guiobjects[:xypos]
-    signal_connect(c, :leave_notify_event) do widget, event
-        xypos[:label] = ""
-        false
+    if isdefined(imgc, :guiobjects)
+        guiobjects = imgc.guiobjects
+        if haskey(guiobjects, :xypos)
+            xypos = imgc.guiobjects[:xypos]
+            signal_connect(c, :leave_notify_event) do widget, event
+                xypos[:label] = ""
+                false
+            end
+        end
     end
 end
 

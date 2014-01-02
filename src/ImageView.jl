@@ -3,12 +3,15 @@ include(joinpath(Pkg.dir(),"ImageView","test","testimages.jl"))
 module ImageView
 
 using Base.Graphics
-# import Base.show
 
 using Color
 using Gtk, Gtk.ShortNames
 using Cairo
 using Images
+
+import Base: parent, show
+import Base.Graphics: width, height, fill, set_coords
+import Gtk: toplevel, draw
 
 # include("config.jl")
 # include("external.jl")
