@@ -401,7 +401,7 @@ function create_callbacks(imgc, img2)
     # Set up the drawing callbacks
     c.draw = x -> resize(imgc, img2)
     # Receive additional event types
-    add_events(c, EventMask.SCROLL_MASK | EventMask.KEY_PRESS_MASK | EventMask.LEAVE_NOTIFY_MASK)
+    add_events(c, EventMask.SCROLL | EventMask.KEY_PRESS | EventMask.LEAVE_NOTIFY)
     # Left-click
     c.mouse.button1press = (widget, event) -> begin
         if event.event_type == EventType.DOUBLE_BUTTON_PRESS
@@ -431,22 +431,22 @@ end
 ### Callback handling ###
 function scroll_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
     dirn = scrollpm(event.direction)
-    if event.state & ModifierType.MOD1_MASK > 0
+    if event.state & ModifierType.MOD1 > 0
         # Navigation (Alt-scroll)
         # FIXME move to navigation??
         ctrls = get(imgc.guiobjects, :navigationctrls, nothing)
         if ctrls != nothing
             state = imgc.navigationstate
-            if event.state & ModifierType.CONTROL_MASK > 0
+            if event.state & ModifierType.CONTROL > 0
                 reslicez(imgc, img2, ctrls, state, dirn)
             else
                 reslicet(imgc, img2, ctrls, state, dirn)
             end
         end
     else
-        if event.state & ModifierType.CONTROL_MASK > 0
+        if event.state & ModifierType.CONTROL > 0
             zoomwheel(imgc, img2, scrollpm(event.direction), event.x, event.y)
-        elseif event.state & ModifierType.SHIFT_MASK > 0
+        elseif event.state & ModifierType.SHIFT > 0
             panhorz(imgc, img2, scrollpm(event.direction))
         else
             panvert(imgc, img2, scrollpm(event.direction))
@@ -479,7 +479,7 @@ scrollpm(direction::Integer) =
 #     end
 function key_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
     ret = false
-    if event.state & ModifierType.CONTROL_MASK > 0
+    if event.state & ModifierType.CONTROL > 0
         # Zoom (with Ctrl)
         x, y, mask = get_pointer(imgc.c)
         if event.keyval == Key.Up
