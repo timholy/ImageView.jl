@@ -242,6 +242,7 @@ function display{A<:AbstractArray}(img::A; proplist...)
     push!(win, framec)
 #     c = Canvas(ww, wh)
     c = Canvas()
+    G_.double_buffered(c, true)
     push!(framec, c)
     guiobjects[:canvas] = c
     framec[c,:expand] = true
@@ -549,8 +550,7 @@ function redraw(imgc::ImageCanvas)
     for (h,ann) in imgc.annotations
         draw(imgc.c, ann)
     end
-    reveal(imgc.c)
-#     Tk.update()
+    reveal(imgc.c, false)
 end
 
 # Used for both window resize and zoom events

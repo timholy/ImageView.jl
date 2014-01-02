@@ -50,8 +50,7 @@ function rubberband_move(c::Canvas, rb::RubberBand, x, y, ctxcopy)
     # Draw the new rubberband
     rb.pos2 = Vec2(x, y)
     rbdraw(r, rb)
-    reveal(c)
-#     Tk.update()
+    reveal(c, false)
 end
 
 function rubberband_stop(c::Canvas, rb::RubberBand, x, y, ctxcopy, callbacks_old, callback_done)
@@ -64,7 +63,7 @@ function rubberband_stop(c::Canvas, rb::RubberBand, x, y, ctxcopy, callbacks_old
     set_source(r, ctxcopy)
     set_line_width(r, 2)
     stroke(r)
-    reveal(c)
+    reveal(c, false)
     restore(r)
 #     Tk.update()
     x1, y1 = rb.pos1.x, rb.pos1.y
