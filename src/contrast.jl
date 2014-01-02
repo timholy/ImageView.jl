@@ -109,7 +109,7 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
         try
             my_min = float64(emin[:text,String])
             my_max = float64(emax[:text,String])
-            update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
+            update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, cdata, rerender)
         catch
             emin[:text] = string(cs.min)
         end
@@ -118,7 +118,7 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
         try
             my_min = float64(emin[:text,String])
             my_max = float64(emax[:text,String])
-            update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
+            update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, cdata, rerender)
         catch
             emax[:text] = string(cs.max)
         end
@@ -126,12 +126,12 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
     signal_connect(min_slider, "value-changed") do widget
         my_min = G_.value(min_slider)
         my_max = G_.value(max_slider)
-        update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
+        update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, cdata, rerender)
     end
     signal_connect(max_slider, "value-changed") do widget
         my_min = G_.value(min_slider)
         my_max = G_.value(max_slider)
-        update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
+        update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, cdata, rerender)
     end
     signal_connect(zoom, "clicked") do widget
         setrange(cdata.chist, cdata.phist, cdata.imgmin, cdata.imgmax, rerender)
@@ -143,15 +143,34 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
     replaceimage
 end
 
-function update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, rerender)
+function update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, cdata, rerender)
     # Don't let values cross
     my_max = my_max < my_min ? my_min + 0.01 : my_max # offset is arbitrary
     cs.min = convertsafely(typeof(cs.min), my_min)
     cs.max = convertsafely(typeof(cs.max), my_max)
     emin[:text] = string(my_min)
     emax[:text] = string(my_max)
-    G_.value(min_slider, my_min)
-    G_.value(max_slider, my_max)
+    min_adj = Adjustment(min_slider)
+    max_adj = Adjustment(max_slider)
+    bb = Winston.limits(cdata.phist)
+    xl = getattr(cdata.phist, "xrange")
+    xlmin = xl == nothing ? bb.xmin : xl[1]
+    xlmax = xl == nothing ? bb.xmax : xl[2]
+    if my_max > max_adj[:upper,Float64]
+        min_adj[:upper] = my_max
+        max_adj[:upper] = my_max
+        xlmax = my_max
+    end
+    if my_min < min_adj[:lower,Float64]
+        min_adj[:lower] = my_min
+        max_adj[:lower] = my_min
+        xlmin = my_min
+    end
+    min_adj[:value] = my_min
+    max_adj[:value] = my_max
+#     G_.value(min_slider, my_min)
+#     G_.value(max_slider, my_max)
+    setattr(cdata.phist, "xrange", (xlmin, xlmax))
     rerender()
 end
 
