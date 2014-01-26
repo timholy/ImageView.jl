@@ -62,7 +62,7 @@ function init_navigation!(g, ctrls::NavigationControls, state::NavigationState, 
     stopicon[:,[1,btnsz[2]]] = bkg
     icon = Pixbuf(data=stopicon, has_alpha=false)
     ctrls.stop = Button(Gtk.Image(icon))
-    ctrls.stop[:border_width] = pad
+    setproperty!(ctrls.stop, :border_width, pad)
     signal_connect(ctrls.stop, "clicked") do widget
         stop_playing!(state)
     end
@@ -131,7 +131,7 @@ end
 function set_fps!(state::NavigationState)
     l = Label("Frames per second:")
     e = Entry()
-    e[:text] = string(state.fps)
+    setproperty!(e, :text, string(state.fps))
     ok = Button("OK")
     cancel = Button("Cancel")
     
@@ -146,11 +146,11 @@ function set_fps!(state::NavigationState)
     
     function set_close!(state::NavigationState)
         try
-            fps = float64(e[:text,String])
+            fps = float64(getproperty(e, :text, String))
             state.fps = fps
             destroy(win)
         catch
-            e[:text] = string(state.fps)
+            setproperty!(e, :text, string(state.fps))
         end
     end
     signal_connect(ok, "clicked") do widget
@@ -203,18 +203,17 @@ function addbuttons(g, sz, bkg, pad, index, orientation, callback, rng)
         icon = Pixbuf(data=copy(buf), has_alpha=false)
         b = Button(Image(icon))
         g[index[ibutton[i]],1] = b
-#         g[b, :padding] = pad
-#         b[:xpad] = b[:ypad] = pad
-        b[:border_width] = pad
+        setproperty!(b, :border_width, pad)
         signal_connect(callback[i], b, "clicked")
         ctrl[i] = b
     end
     l = Label(orientation*":")
     g[index[3],1] = l
-    l[:xpad] = l[:ypad] = pad
+    setproperty!(l, :xpad, pad)
+    setproperty!(l, :ypad, pad)
     ctrl[5] = l
     e = Entry()
-    e[:text] = "1"
+    setproperty!(e, :text, "1")
 #     configure(ctrl[6], width=5)
     g[index[4],1] = e
 #     e[:padding] = pad
@@ -229,25 +228,25 @@ function addbuttons(g, sz, bkg, pad, index, orientation, callback, rng)
 end
 
 function updatez(ctrls, state)
-    ctrls.editz[:text] = string(state.z)
+    setproperty!(ctrls.editz, :text, string(state.z))
     G_.value(ctrls.scalez, state.z)
     enabledown = state.z > 1
-    ctrls.stepdown[:sensitive] = enabledown
-    ctrls.playdown[:sensitive] = enabledown
+    setproperty!(ctrls.stepdown, :sensitive, enabledown)
+    setproperty!(ctrls.playdown, :sensitive, enabledown)
     enableup = state.z < state.zmax
-    ctrls.stepup[:sensitive] = enableup
-    ctrls.playup[:sensitive] = enableup
+    setproperty!(ctrls.stepup, :sensitive, enableup)
+    setproperty!(ctrls.playup, :sensitive, enableup)
 end
 
 function updatet(ctrls, state)
-    ctrls.editt[:text] = string(state.t)
+    setproperty!(ctrls.editt, :text, string(state.t))
     G_.value(ctrls.scalet, state.t)
     enableback = state.t > 1
-    ctrls.stepback[:sensitive] = enableback
-    ctrls.playback[:sensitive] = enableback
+    setproperty!(ctrls.stepback, :sensitive, enableback)
+    setproperty!(ctrls.playback, :sensitive, enableback)
     enablefwd = state.t < state.tmax
-    ctrls.stepfwd[:sensitive] = enablefwd
-    ctrls.playfwd[:sensitive] = enablefwd
+    setproperty!(ctrls.stepfwd, :sensitive, enablefwd)
+    setproperty!(ctrls.playfwd, :sensitive, enablefwd)
 end
 
 function incrementz(inc, ctrls, state, showframe)
@@ -275,7 +274,7 @@ function playz(inc, ctrls, state, showframe)
 end
 
 function setz(ctrls,state, showframe)
-    zstr = ctrls.editz[:text,String]
+    zstr = getproperty(ctrls.editz, :text, String)
     try
         val = int(zstr)
         state.z = val
@@ -317,7 +316,7 @@ function playt(inc, ctrls, state, showframe)
 end
 
 function sett(ctrls,state, showframe)
-    tstr = ctrls.editt[:text,String]
+    tstr = getproperty(ctrls.editt, :text, String)
     try
         val = int(tstr)
         state.t = val

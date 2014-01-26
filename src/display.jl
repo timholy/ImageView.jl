@@ -231,7 +231,7 @@ function display{A<:AbstractArray}(img::A; proplist...)
     win = Window(get(props, :name, "ImageView"), ww, whfull)
     guiobjects[:main] = win
     if OS_NAME == :Darwin
-        win[:border_width] = 30
+        setproperty!(win, :border_width, 30)
     end
 #     framec = Frame()
     framec = BoxLayout(:v)
@@ -240,7 +240,7 @@ function display{A<:AbstractArray}(img::A; proplist...)
     c = Canvas()
     push!(framec, c)
     guiobjects[:canvas] = c
-    framec[c,:expand] = true
+    setproperty!(framec,:expand,c,true)
     imgc.c = c
     # If necessary, create the navigation controls
     if havecontrols
@@ -339,11 +339,11 @@ end
 function canvasgrid(ny, nx; w = 800, h = 600, pad=0, name="ImageView")
     g = Grid()
     win = Window(g, name, w, h)
-    g[:expand] = true
+    setproperty!(g, :expand, true)
     for i = 1:nx
         for j = 1:ny
             c1 = Canvas()
-            c1[:expand] = true
+            setproperty!(c1, :expand, true)
             g[i,j] = c1
         end
     end
@@ -414,7 +414,7 @@ function create_callbacks(imgc, img2)
         if haskey(guiobjects, :xypos)
             xypos = imgc.guiobjects[:xypos]
             signal_connect(c, :leave_notify_event) do widget, event
-                xypos[:label] = ""
+                setproperty!(xypos, :label, "")
                 false
             end
         end
@@ -561,9 +561,9 @@ end
 function updatexylabel(xypos, imgc, x, y)
     if isinside(imgc.canvasbb, x, y)
         xu,yu = device_to_user(getgc(imgc.c), x, y)
-        xypos[:label] = string(iceil(xu), ", ", iceil(yu))
+        setproperty!(xypos, :label, string(iceil(xu), ", ", iceil(yu)))
     else
-        xypos[:label] = ""
+        setproperty!(xypos, :label, "")
     end
 end
 
