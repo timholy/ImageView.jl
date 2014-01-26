@@ -353,7 +353,7 @@ end
 
 function annotate!(imgc::ImageCanvas, img2::ImageSlice2d, ann; anchored::Bool=true)
     len = annotate_nodraw!(imgc, img2, ann; anchored = anchored)
-    redraw(imgc)
+    draw(imgc.c)
     len
 end
 
