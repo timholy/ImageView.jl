@@ -228,16 +228,16 @@ function display{A<:AbstractArray}(img::A; proplist...)
     # Create the window and the canvas for displaying the image
     guiobjects = Dict{Symbol,Any}()
     imgc.guiobjects = guiobjects
-    win = Window(get(props, :name, "ImageView"), ww, whfull)
+    win = @Window(get(props, :name, "ImageView"), ww, whfull)
     guiobjects[:main] = win
     if OS_NAME == :Darwin
         setproperty!(win, :border_width, 30)
     end
 #     framec = Frame()
-    framec = BoxLayout(:v)
+    framec = @Box(true)
     push!(win, framec)
 #     c = Canvas(ww, wh)
-    c = Canvas()
+    c = @Canvas()
     push!(framec, c)
     guiobjects[:canvas] = c
     setproperty!(framec,:expand,c,true)
@@ -247,8 +247,8 @@ function display{A<:AbstractArray}(img::A; proplist...)
         ctrls = NavigationControls()
         state = NavigationState(zmax, tmax)
         showframe = state -> reslice(imgc, img2, state)
-        gctrls = Grid()
-        fctrls = Frame(gctrls)
+        gctrls = @Grid()
+        fctrls = @Frame(gctrls)
         push!(framec, fctrls)
         init_navigation!(gctrls, ctrls, state, showframe)
         if zmax > 1
@@ -265,7 +265,7 @@ function display{A<:AbstractArray}(img::A; proplist...)
         guiobjects[:navigationctrls] = ctrls
     end
     # Create the x,y position reporter
-    xypos = Label("")
+    xypos = @Label("")
 #     G_.justify(xypos, Justification.RIGHT)
 #     G_.alignment(xypos, 1.0, 0.5)
     push!(framec, xypos)
@@ -275,8 +275,8 @@ function display{A<:AbstractArray}(img::A; proplist...)
     create_callbacks(imgc, img2)
     c.mouse.motion = (widget, event) -> updatexylabel(xypos, imgc, event.x, event.y)
     if imgc.render! == uint32color! && colorspace(img) == "Gray"
-        popupmenu = Menu()
-        contrast = MenuItem("Adjust contrast...")
+        popupmenu = @Menu()
+        contrast = @MenuItem("Adjust contrast...")
         push!(popupmenu, contrast)
         c.mouse.button3press = (widget,event) -> popup(popupmenu, event)
         clim = climdefault(img)
@@ -337,12 +337,12 @@ function display{A<:AbstractArray}(c::Canvas, img::A; proplist...)
 end
 
 function canvasgrid(ny, nx; w = 800, h = 600, pad=0, name="ImageView")
-    g = Grid()
-    win = Window(g, name, w, h)
+    g = @Grid()
+    win = @Window(g, name, w, h)
     setproperty!(g, :expand, true)
     for i = 1:nx
         for j = 1:ny
-            c1 = Canvas()
+            c1 = @Canvas()
             setproperty!(c1, :expand, true)
             g[i,j] = c1
         end
@@ -391,12 +391,12 @@ function create_callbacks(imgc, img2)
     # Set up the drawing callbacks
     c.draw = x -> resize(imgc, img2)
     # Receive additional event types
-    add_events(c, EventMask.SCROLL | EventMask.KEY_PRESS | EventMask.LEAVE_NOTIFY)
+    add_events(c, Gtk.GdkEventType.SCROLL | Gtk.GdkEventType.KEY_PRESS | Gtk.GdkEventType.LEAVE_NOTIFY)
     # Left-click
     c.mouse.button1press = (widget, event) -> begin
-        if event.event_type == EventType.DOUBLE_BUTTON_PRESS
+        if event.event_type == Gtk.GdkEventType.DOUBLE_BUTTON_PRESS
             zoom_reset(imgc, img2)
-        elseif event.event_type == EventType.BUTTON_PRESS
+        elseif event.event_type == Gtk.GdkEventType.BUTTON_PRESS
             rubberband_start(c, event.x, event.y, (c, bb) -> zoombb(imgc, img2, bb))
         end
     end

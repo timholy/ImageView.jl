@@ -60,8 +60,8 @@ function init_navigation!(g, ctrls::NavigationControls, state::NavigationState, 
     stopicon = fill(blk, btnsz)
     stopicon[[1,btnsz[1]],:] = bkg
     stopicon[:,[1,btnsz[2]]] = bkg
-    icon = Pixbuf(data=stopicon, has_alpha=false)
-    ctrls.stop = Button(Gtk.Image(icon))
+    icon = @Pixbuf(data=stopicon, has_alpha=false)
+    ctrls.stop = @Button(Gtk.@Image(icon))
     setproperty!(ctrls.stop, :border_width, pad)
     signal_connect(ctrls.stop, "clicked") do widget
         stop_playing!(state)
@@ -114,13 +114,13 @@ function init_navigation!(g, ctrls::NavigationControls, state::NavigationState, 
         updatet(ctrls, state)
     end
     # Context menu for settings
-    menu = Menu()
+    menu = @Menu()
     signal_connect(parent(g), "button_press_event") do widget, event
         if event.button == 3 && event.event_type == EventType.BUTTON_PRESS
             popup(menu, event)
         end
     end
-    playback = MenuItem("Playback speed...")
+    playback = @MenuItem("Playback speed...")
     signal_connect(playback, "activate") do widget
         set_fps!(state)
     end
@@ -129,13 +129,13 @@ end
 
 # GUI to set the frame rate
 function set_fps!(state::NavigationState)
-    l = Label("Frames per second:")
-    e = Entry()
+    l = @Label("Frames per second:")
+    e = @Entry()
     setproperty!(e, :text, string(state.fps))
-    ok = Button("OK")
+    ok = @Button("OK")
     cancel = Button("Cancel")
     
-    g = Table(2, 2)
+    g = @Table(2, 2)
     win = Window("Set frame rate",200,60)
     push!(win, g)
     g[1,1] = l
@@ -200,26 +200,26 @@ function addbuttons(g, sz, bkg, pad, index, orientation, callback, rng)
     for i = 1:4
         fill!(buf, bkg)
         buf[ctrl[i]] = color[i]
-        icon = Pixbuf(data=copy(buf), has_alpha=false)
-        b = Button(Image(icon))
+        icon = @Pixbuf(data=copy(buf), has_alpha=false)
+        b = @Button(@Image(icon))
         g[index[ibutton[i]],1] = b
         setproperty!(b, :border_width, pad)
         signal_connect(callback[i], b, "clicked")
         ctrl[i] = b
     end
-    l = Label(orientation*":")
+    l = @Label(orientation*":")
     g[index[3],1] = l
     setproperty!(l, :xpad, pad)
     setproperty!(l, :ypad, pad)
     ctrl[5] = l
-    e = Entry()
+    e = @Entry()
     setproperty!(e, :text, "1")
 #     configure(ctrl[6], width=5)
     g[index[4],1] = e
 #     e[:padding] = pad
     signal_connect(callback[5], e, "activate")
     ctrl[6] = e
-    s = Scale(false, rng)
+    s = @Scale(false, rng)
     g[index,2] = s
 #     s[:padding] = pad
     signal_connect(callback[6], s, "value-changed")
