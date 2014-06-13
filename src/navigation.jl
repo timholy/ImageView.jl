@@ -269,7 +269,7 @@ function playz(inc, ctrls, state, showframe)
     end
     stop_playing!(state)
     dt = 1/state.fps
-    state.timer = TimeoutAsyncWork((timer, status) -> stepz(inc, ctrls, state, showframe))
+    state.timer = TimeoutAsyncWork(VERSION >= v"0.3-" ? timer -> stepz(inc, ctrls, state, showframe) : (timer, status) -> stepz(inc, ctrls, state, showframe))
     start_timer(state.timer, dt, dt)
 end
 
@@ -311,7 +311,7 @@ function playt(inc, ctrls, state, showframe)
     end
     stop_playing!(state)
     dt = 1/state.fps
-    state.timer = TimeoutAsyncWork((timer, status) -> stept(inc, ctrls, state, showframe))
+    state.timer = TimeoutAsyncWork(VERSION >= v"0.3-" ? timer -> stept(inc, ctrls, state, showframe) : (timer, status) -> stept(inc, ctrls, state, showframe))
     start_timer(state.timer, dt, dt)
 end
 

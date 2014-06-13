@@ -21,7 +21,7 @@ end
 #    callback(cs)
 # The callback's job is to replot the image with the new contrast settings
 function contrastgui{T}(img::AbstractArray{T}, cs::ContrastSettings, callback::Function)
-    win = Window("Adjust contrast", 500, 300)
+    win = @Window("Adjust contrast", 500, 300)
     contrastgui(win, img, cs, callback)
 end
 
@@ -41,36 +41,36 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
 
     # Set up GUI
     
-    g = Grid() #Table(2,3)
+    g = @Grid() #Table(2,3)
     push!(win, g)
     w = width(win)
     h = height(win)
 
     slider_range = float64(immin):float64(immax-immin)/200:float64(immax)
-    max_slider = Scale(false,slider_range)
+    max_slider = @Scale(false,slider_range)
     G_.value(max_slider, float64(cs.max))
-    chist = Canvas(int(2w/3), h)
-    min_slider = Scale(false,slider_range)
+    chist = @Canvas(int(2w/3), h)
+    min_slider = @Scale(false,slider_range)
     G_.value(min_slider, float64(cs.min))
 
     g[1,1] = max_slider
     g[1,2] = chist
     g[1,3] = min_slider
-    chist[:expand] = true
+    setproperty!(chist, :expand, true)
     
-    emax = Entry()
-    emin = Entry()
-    emax[:text] = string(float64(cs.max))
-    emin[:text] = string(float64(cs.min))
+    emax = @Entry()
+    emin = @Entry()
+    setproperty!(emax, :text, string(float64(cs.max)))
+    setproperty!(emin, :text, string(float64(cs.min)))
     g[2,1] = emax
     g[2,3] = emin
     
 #    emax[:textvariable] = max_slider[:variable]
 #    emin[:textvariable] = min_slider[:variable]
     
-    bx = ButtonBox(true)
-    zoom = Button("Zoom")
-    full = Button("Full range")
+    bx = @ButtonBox(true)
+    zoom = @Button("Zoom")
+    full = @Button("Full range")
     push!(bx, zoom)
     push!(bx, full)
     g[2,2] = bx
@@ -85,8 +85,8 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
     function rerender()
         pcopy = deepcopy(cdata.phist)
         bb = Winston.limits(cdata.phist)
-        add(pcopy, Curve([cs.min, cs.max], [bb.ymin, bb.ymax], "linewidth", 10, "color", "white"))
-        add(pcopy, Curve([cs.min, cs.max], [bb.ymin, bb.ymax], "linewidth", 5, "color", "black"))
+        add(pcopy, Curve([cs.min, cs.max], [bb.y0, bb.y1], "linewidth", 10, "color", "white"))
+        add(pcopy, Curve([cs.min, cs.max], [bb.y0, bb.y1], "linewidth", 5, "color", "black"))
         Winston.display(chist, pcopy)
         reveal(chist)
         callback(cs)
@@ -111,7 +111,7 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
             my_max = float64(emax[:text,String])
             update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, cdata, rerender)
         catch
-            emin[:text] = string(cs.min)
+            setproperty!(emin, :text, string(cs.min))
         end
     end
     signal_connect(emax, "activate") do widget
@@ -120,7 +120,7 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
             my_max = float64(emax[:text,String])
             update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, cdata, rerender)
         catch
-            emax[:text] = string(cs.max)
+            setproperty!(emax, :text, string(cs.max))
         end
     end
     signal_connect(min_slider, "value-changed") do widget
@@ -148,28 +148,26 @@ function update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, c
     my_max = my_max < my_min ? my_min + 0.01 : my_max # offset is arbitrary
     cs.min = convertsafely(typeof(cs.min), my_min)
     cs.max = convertsafely(typeof(cs.max), my_max)
-    emin[:text] = string(my_min)
-    emax[:text] = string(my_max)
-    min_adj = Adjustment(min_slider)
-    max_adj = Adjustment(max_slider)
+    setproperty!(emin, :text, string(my_min))
+    setproperty!(emax, :text, string(my_max))
+    min_adj = @Adjustment(min_slider)
+    max_adj = @Adjustment(max_slider)
     bb = Winston.limits(cdata.phist)
     xl = getattr(cdata.phist, "xrange")
     xlmin = xl == nothing ? bb.xmin : xl[1]
     xlmax = xl == nothing ? bb.xmax : xl[2]
-    if my_max > max_adj[:upper,Float64]
-        min_adj[:upper] = my_max
-        max_adj[:upper] = my_max
+    if my_max > getproperty(max_adj, :upper, Float64)
+        setproperty!(min_adj, :upper, my_max)
+        setproperty!(max_adj, :upper, my_max)
         xlmax = my_max
     end
-    if my_min < min_adj[:lower,Float64]
-        min_adj[:lower] = my_min
-        max_adj[:lower] = my_min
+    if my_min < getproperty(min_adj, :lower, Float64)
+        setproperty!(min_adj, :lower, my_min)
+        setproperty!(max_adj, :lower, my_min)
         xlmin = my_min
     end
-    min_adj[:value] = my_min
-    max_adj[:value] = my_max
-#     G_.value(min_slider, my_min)
-#     G_.value(max_slider, my_max)
+    setproperty!(min_adj, :value, my_min)
+    setproperty!(max_adj, :value, my_max)
     setattr(cdata.phist, "xrange", (xlmin, xlmax))
     rerender()
 end
@@ -181,7 +179,7 @@ function prepare_histogram(img, nbins, immin, immax)
     e = immin:(immax-immin)/(nbins-1):immax*(1+1e-6)
     dat = img[:]
     e, counts = hist(dat[isfinite(dat)], e)
-    counts += 1   # because of log scaling
+    counts .+= 1   # because of log scaling
     x, y = stairs(e, counts)
     p = FramedPlot()
     setattr(p, "ylog", true)

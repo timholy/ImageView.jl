@@ -1,11 +1,9 @@
-include(joinpath(Pkg.dir(),"ImageView","test","testimages.jl"))
-
 module ImageView
 
 using Base.Graphics
 
 using Color
-using Gtk, Gtk.ShortNames
+using Gtk, Gtk.ShortNames, Gtk.GConstants
 using Cairo
 using Images
 

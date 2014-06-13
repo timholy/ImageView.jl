@@ -1,8 +1,25 @@
 using ImageView.Navigation
 
+# <<<<<<< HEAD
 # Dialog-based image opening
+# =======
+import Base: show
+import Base.Graphics: width, height, fill, set_coords, xmin, xmax, ymin, ymax
+# 
+# 
+# # Since we have Tk available, don't force the user to type a filename
+# >>>>>>> master
 import Images.imread
 # imread() = imread(GtkFileChooserDialog())  # TODO
+
+import Images.scaleinfo
+function scaleinfo(cs::ImageContrast.ContrastSettings, scalei::ScaleInfo, img)
+    if cs.min == nothing && cs.max == nothing
+        return scalei
+    else
+        return scaleminmax(img, cs.min, cs.max)
+    end
+end
 
 @linux_only const default_perimeter = RGB(0.85,0.85,0.85)
 @osx_only const default_perimeter = RGB(0.93, 0.93, 0.93)
@@ -87,23 +104,26 @@ type ImageSlice2d{A<:AbstractImage}
     indexes::Vector{RangeIndex}
     dims::Vector{Int}
     zoombb::BoundingBox
+    zindex::Int
+    tindex::Int
     xdim::Int
     ydim::Int
     zdim::Int
     tdim::Int
 end
-function ImageSlice2d(img::AbstractImage, pdims::Vector{Int}, indexes, dims, bb::BoundingBox, xdim::Integer, ydim::Integer, zdim::Integer, tdim::Integer)
+
+function ImageSlice2d(img::AbstractImage, pdims::Vector{Int}, indexes, dims, bb::BoundingBox, zindex::Integer, tindex::Integer, xdim::Integer, ydim::Integer, zdim::Integer, tdim::Integer)
     assert2d(img)
-    ImageSlice2d{typeof(img)}(img, pdims, RangeIndex[indexes...], Int[dims...], bb, int(xdim), int(ydim), int(zdim), int(tdim))
+    ImageSlice2d{typeof(img)}(img, pdims, RangeIndex[indexes...], Int[dims...], bb, int(zindex), int(tindex), int(xdim), int(ydim), int(zdim), int(tdim))
 end
 
 function show(io::IO, img2::ImageSlice2d)
     print(io, "ImageSlice2d: zoom = ", img2.zoombb)
     if img2.zdim > 0
-        print(io, ", z = ", img2.indexes[img2.zdim])
+        print(io, ", z = ", img2.zindex)
     end
     if img2.tdim > 0
-        print(io, ", t = ", img2.indexes[img2.tdim])
+        print(io, ", t = ", img2.tindex)
     end
 end
 
@@ -131,24 +151,34 @@ function ImageSlice2d(img::AbstractArray, props::Dict)
     end
     props[:transpose] = p[1] > p[2]
     # Start at z=1, t=1
-    indexes = ntuple(ndims(img), i -> (i == zdim || i == tdim) ? 1 : (1:size(img, i)))
+    pindexes = parentindexes(data(img))
     pdims = parentdims(data(img))
+    indexes = ntuple(ndims(img), i -> (i == zdim || i == tdim) ? 1 : (1:size(img, i)))
     imslice = sliceim(img, indexes...)
     bb = BoundingBox(0, size(img, xdim), 0, size(img, ydim))
-    ImageSlice2d(imslice, pdims, indexes, size(imslice), bb, xdim, ydim, zdim, tdim)
+    sz = size(imslice)
+    ImageSlice2d(imslice, pdims, pindexes, size(imslice), bb, 1, 1, xdim, ydim, zdim, tdim)
 end
 
 parentdims(A::AbstractArray) = [1:ndims(A)]
 parentdims(A::SubArray) = Base.parentdims(A)
 
 function _reslice!(img2::ImageSlice2d)
-    newindexes = RangeIndex[img2.imslice.data.indexes...]
-    newindexes[img2.pdims] = img2.indexes
+    newindexes = copy(img2.indexes)
+    bb = img2.zoombb
+    newindexes[img2.xdim] = newindexes[img2.xdim][ifloor(bb.xmin)+1:iceil(bb.xmax)]
+    newindexes[img2.ydim] = newindexes[img2.ydim][ifloor(bb.ymin)+1:iceil(bb.ymax)]
+    if img2.zdim > 0
+        newindexes[img2.zdim] = newindexes[img2.zdim][img2.zindex]
+    end
+    if img2.tdim > 0
+        newindexes[img2.tdim] = newindexes[img2.tdim][img2.tindex]
+    end
     img2.imslice.data.indexes = tuple(newindexes...)
     j = 1
-    for i = 1:length(img2.indexes)
-        if !isa(img2.indexes[i], Int)
-            img2.dims[j] = length(img2.indexes[i])
+    for i = 1:length(newindexes)
+        if !isa(newindexes[i], Int)
+            img2.dims[j] = length(newindexes[i])
             j += 1
         end
     end
@@ -157,40 +187,32 @@ function _reslice!(img2::ImageSlice2d)
 end
 
 function slice2!(img2::ImageSlice2d, z::Int, t::Int)
-    if img2.zdim != 0
-        img2.indexes[img2.zdim] = z
-    end
-    if img2.tdim != 0
-        img2.indexes[img2.tdim] = t
-    end
+    img2.zindex = z
+    img2.tindex = t
     _reslice!(img2)
 end
 
 function zoom2!(img2::ImageSlice2d, bb::BoundingBox)
     img2.zoombb = bb
-    img2.indexes[img2.xdim] = ifloor(bb.xmin)+1:iceil(bb.xmax)
-    img2.indexes[img2.ydim] = ifloor(bb.ymin)+1:iceil(bb.ymax)
     _reslice!(img2)
 end
 
 function zoom2!(img2::ImageSlice2d)
-    p = img2.imslice.parent
-    img2.indexes[img2.xdim] = 1:size(p, img2.xdim)
-    img2.indexes[img2.ydim] = 1:size(p, img2.ydim)
-    img2.imslice.indexes = tuple(img2.indexes...)
-    resetfirst!(img2.imslice)
+    img2.zoombb = BoundingBox(0,length(img2.indexes[img2.xdim]),0,length(img2.indexes[img2.ydim]))
+    _reslice!(img2)
 end
 
-width(img2::ImageSlice2d) = length(img2.indexes[img2.xdim])
-height(img2::ImageSlice2d) = length(img2.indexes[img2.ydim])
-xmin(img2::ImageSlice2d) = img2.indexes[img2.xdim][1]
-xmax(img2::ImageSlice2d) = img2.indexes[img2.xdim][end]
-ymin(img2::ImageSlice2d) = img2.indexes[img2.ydim][1]
-ymax(img2::ImageSlice2d) = img2.indexes[img2.ydim][end]
-sizex(img2::ImageSlice2d) = size(img2.imslice.data.parent, img2.xdim)
-sizey(img2::ImageSlice2d) = size(img2.imslice.data.parent, img2.ydim)
-sizez(img2::ImageSlice2d) = (img2.zdim > 0) ? size(img2.imslice.data.parent, img2.zdim) : 1
-sizet(img2::ImageSlice2d) = (img2.tdim > 0) ? size(img2.imslice.data.parent, img2.tdim) : 1
+# 
+width(img2::ImageSlice2d)  = iceil(xmax(img2))-ifloor(xmin(img2))
+height(img2::ImageSlice2d) = iceil(ymax(img2))-ifloor(ymin(img2))
+xmin(img2::ImageSlice2d) = xmin(img2.zoombb)
+xmax(img2::ImageSlice2d) = xmax(img2.zoombb)
+ymin(img2::ImageSlice2d) = ymin(img2.zoombb)
+ymax(img2::ImageSlice2d) = ymax(img2.zoombb)
+sizex(img2::ImageSlice2d) = length(img2.indexes[img2.xdim])
+sizey(img2::ImageSlice2d) = length(img2.indexes[img2.ydim])
+sizez(img2::ImageSlice2d) = (img2.zdim > 0) ? length(img2.indexes[img2.zdim]) : 1
+sizet(img2::ImageSlice2d) = (img2.tdim > 0) ? length(img2.indexes[img2.tdim]) : 1
 xrange(img2::ImageSlice2d) = (xmin(img2), xmax(img2))
 yrange(img2::ImageSlice2d) = (ymin(img2), ymax(img2))
 
@@ -278,10 +300,16 @@ function display{A<:AbstractArray}(img::A; proplist...)
         popupmenu = @Menu()
         contrast = @MenuItem("Adjust contrast...")
         push!(popupmenu, contrast)
+        showall(popupmenu)   # shows as a thin bar otherwise
         c.mouse.button3press = (widget,event) -> popup(popupmenu, event)
-        clim = climdefault(img)
-        cs = ImageContrast.ContrastSettings(clim[1], clim[2])
-        imgc.render! = (buf,img) -> uint32color!(buf, img, scaleminmax(img, cs.min, cs.max))
+        if haskey(img, "scalei")
+            cs = ImageContrast.ContrastSettings(nothing,nothing)
+            imgc.render! = (buf,img) -> uint32color!(buf, img, scaleinfo(cs, img["scalei"], img))
+        else
+            clim = climdefault(img)
+            cs = ImageContrast.ContrastSettings(clim[1], clim[2])
+            imgc.render! = (buf,img) -> uint32color!(buf, img, scaleminmax(img, cs.min, cs.max))
+        end
         signal_connect(contrast, :activate) do widget
             ImageContrast.contrastgui(img2.imslice, cs, x->redraw(imgc, img2))
         end
@@ -391,7 +419,9 @@ function create_callbacks(imgc, img2)
     # Set up the drawing callbacks
     c.draw = x -> resize(imgc, img2)
     # Receive additional event types
-    add_events(c, Gtk.GdkEventType.SCROLL | Gtk.GdkEventType.KEY_PRESS | Gtk.GdkEventType.LEAVE_NOTIFY)
+    add_events(c, GdkEventMask.SCROLL | GdkEventMask.KEY_PRESS | GdkEventMask.LEAVE_NOTIFY)
+    setproperty!(c, :can_focus, true)
+    setproperty!(c, :has_focus, true)
     # Left-click
     c.mouse.button1press = (widget, event) -> begin
         if event.event_type == Gtk.GdkEventType.DOUBLE_BUTTON_PRESS
@@ -425,22 +455,22 @@ end
 ### Callback handling ###
 function scroll_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
     dirn = scrollpm(event.direction)
-    if event.state & ModifierType.MOD1 > 0
+    if event.state & GdkModifierType.MOD1 > 0
         # Navigation (Alt-scroll)
         # FIXME move to navigation??
         ctrls = get(imgc.guiobjects, :navigationctrls, nothing)
         if ctrls != nothing
             state = imgc.navigationstate
-            if event.state & ModifierType.CONTROL > 0
+            if event.state & GdkModifierType.CONTROL > 0
                 reslicez(imgc, img2, ctrls, state, dirn)
             else
                 reslicet(imgc, img2, ctrls, state, dirn)
             end
         end
     else
-        if event.state & ModifierType.CONTROL > 0
+        if event.state & GdkModifierType.CONTROL > 0
             zoomwheel(imgc, img2, scrollpm(event.direction), event.x, event.y)
-        elseif event.state & ModifierType.SHIFT > 0
+        elseif event.state & GdkModifierType.SHIFT > 0
             panhorz(imgc, img2, scrollpm(event.direction))
         else
             panvert(imgc, img2, scrollpm(event.direction))
@@ -450,8 +480,8 @@ function scroll_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
 end
 
 scrollpm(direction::Integer) =
-    direction == ScrollDirection.UP ? -1 :
-    direction == ScrollDirection.DOWN ? 1 : error("Direction ", direction, " not recognized")
+    direction == GdkScrollDirection.UP ? -1 :
+    direction == GdkScrollDirection.DOWN ? 1 : error("Direction ", direction, " not recognized")
 
 # FIXME: add (here or in navigation)
 #     if havez || havet
@@ -473,28 +503,28 @@ scrollpm(direction::Integer) =
 #     end
 function key_cb(obj, event, imgc::ImageCanvas, img2::ImageSlice2d)
     ret = false
-    if event.state & ModifierType.CONTROL > 0
+    if event.state & GdkModifierType.CONTROL > 0
         # Zoom (with Ctrl)
-        x, y, mask = get_pointer(imgc.c)
-        if event.keyval == Key.Up
+        x, y = G_.pointer(imgc.c)
+        if event.keyval == GConstants.GDK_KEY_Up
             zoomwheel(imgc, img2, -1, x, y)
             ret = true
-        elseif event.keyval == Key.Down
+        elseif event.keyval == GConstants.GDK_KEY_Down
             zoomwheel(imgc, img2, 1, x, y)
             ret = true
         end
     else
         # Panning
-        if event.keyval == Key.Up
+        if event.keyval == GConstants.GDK_KEY_Up
             panvert(imgc, img2, -1)
             ret = true
-        elseif event.keyval == Key.Down
+        elseif event.keyval == GConstants.GDK_KEY_Down
             panvert(imgc, img2, 1)
             ret = true
-        elseif event.keyval == Key.Left
+        elseif event.keyval == GConstants.GDK_KEY_Left
             panhorz(imgc, img2, -1)
             ret = true
-        elseif event.keyval == Key.Right
+        elseif event.keyval == GConstants.GDK_KEY_Right
             panhorz(imgc, img2, 1)
             ret = true
         end
@@ -661,14 +691,16 @@ function panvert(imgc::ImageCanvas, img2::ImageSlice2d, delta)
     h = size(imgc.surface.data, 2)
     local dy
     if delta < 0
-        dy = -min(ymin(img2)-1, h/10)
+        dy = -min(max(0.0,ymin(img2)-1), h/10)
     else
         dy = min(sizey(img2)-ymax(img2), h/10)
     end
     dy = round(dy)
     if dy != 0
         bb = img2.zoombb
-        bb = BoundingBox(bb.xmin, bb.xmax, bb.ymin+dy, bb.ymax+dy)
+        w = sizex(img2)
+        h = sizey(img2)
+        bb = BoundingBox(bb.xmin, bb.xmax, bb.ymin+dy, bb.ymax+dy) & BoundingBox(0, w, 0, h)
         panzoom(imgc, img2, bb)
         set_coords(imgc, bb)
         redraw(imgc)
@@ -679,14 +711,16 @@ function panhorz(imgc::ImageCanvas, img2::ImageSlice2d, delta)
     w = size(imgc.surface.data, 1)
     local dx
     if delta < 0
-        dx = -min(xmin(img2)-1, w/10)
+        dx = -min(max(0.0,xmin(img2)-1), w/10)
     else
         dx = min(sizex(img2)-xmax(img2), w/10)
     end
     dx = round(dx)
     if dx != 0
         bb = img2.zoombb
-        bb = BoundingBox(bb.xmin+dx, bb.xmax+dx, bb.ymin, bb.ymax)
+        w = sizex(img2)
+        h = sizey(img2)
+        bb = BoundingBox(bb.xmin+dx, bb.xmax+dx, bb.ymin, bb.ymax) & BoundingBox(0, w, 0, h)
         panzoom(imgc, img2, bb)
         set_coords(imgc, bb)
         redraw(imgc)
