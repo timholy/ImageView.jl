@@ -1,16 +1,11 @@
 using ImageView.Navigation
 
-# <<<<<<< HEAD
-# Dialog-based image opening
-# =======
 import Base: show
 import Base.Graphics: width, height, fill, set_coords, xmin, xmax, ymin, ymax
-# 
-# 
-# # Since we have Tk available, don't force the user to type a filename
-# >>>>>>> master
-import Images.imread
-# imread() = imread(GtkFileChooserDialog())  # TODO
+
+# Since we have Gtk available, don't force the user to type a filename
+# import Images.imread
+# imread() = imread(open_dialog("Choose file"))  # TODO
 
 import Images.scaleinfo
 function scaleinfo(cs::ImageContrast.ContrastSettings, scalei::ScaleInfo, img)
