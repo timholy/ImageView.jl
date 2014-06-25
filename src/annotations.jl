@@ -114,7 +114,7 @@ end
 
 setvalid!(ann::AnchoredAnnotation, z, t) = (ann.valid = annotation_isvalid(ann.data, z, t))
 
-annotation_isvalid(x::Union(AnnotationText, AnnotationPoints, AnnotationLines), z, t) = 
+annotation_isvalid(dat::Union(AnnotationText, AnnotationPoints, AnnotationLines), z, t) =
     (isnan(dat.z) || round(dat.z) == z) && (isnan(dat.t) || round(dat.t) == t)
 
 annotation_isvalid(x, z, t) = true
