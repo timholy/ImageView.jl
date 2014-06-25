@@ -167,12 +167,111 @@ display(c[2,2], testimage("mandrill"); ops...)
 ```
 ![canvasgrid snapshot](readme_images/canvasgrid.jpg)
 
+### Annotations
+
+You can add and remove various annotations to images (currently text, points, and lines).
+There are two basic styles of annotation: "anchored" and "floating."
+An "anchored" annotation is positioned at a particular pixel location within the image;
+if you zoom or pan, the annotation will move with the image, and may not even be shown if the corresponding position is off-screen.
+In contrast, a "floating" annotation is not tied to a particular location in the image,
+and will always be displayed at approximately the same position within the window even if you zoom or pan.
+As a consequence, "anchored" annotations are best for labeling particular features in the image,
+and "floating" annotations are best for things like scalebars.
+
+Here's an example of adding a scale bar to an image:
+```julia
+imgc, imsl = ImageView.display(img)
+length = 30
+ImageView.scalebar(imgc, imsl, length; x = 0.1, y = 0.05)
+```
+`x` and `y` describe the center of the scale bar in normalized coordinates, with `(0,0)` in the upper left.
+In this example, the length of the scale bar is in pixels, but if you're using the SIUnits package for `pixelspacing`,
+then use something like `length = 50Micro*Meter`.
+
+The remaining examples are for fixed annotations. Here is a demonstration:
+
+```julia
+using Images, Color
+import ImageView
+z = ones(10,50);
+y = 8; x = 2;
+z[y,x] = 0
+zimg = convert(Image, z)
+imgc, img2 = ImageView.display(zimg,pixelspacing=[1,1]);
+Tk.set_size(ImageView.toplevel(imgc), 200, 200)
+idx = ImageView.annotate!(imgc, img2, ImageView.AnnotationText(x, y, "x", color=RGB(0,0,1), fontsize=3))
+idx2 = ImageView.annotate!(imgc, img2, ImageView.AnnotationPoint(x+10, y, shape='.', size=4, color=RGB(1,0,0)))
+idx3 = ImageView.annotate!(imgc, img2, ImageView.AnnotationPoint(x+20, y-6, shape='.', size=1, color=RGB(1,0,0), linecolor=RGB(0,0,0), scale=true))
+idx4 = ImageView.annotate!(imgc, img2, ImageView.AnnotationLine(x+10, y, x+20, y-6, linewidth=2, color=RGB(0,1,0)))
+#ImageView.delete_annotation!(imgc, idx)
+```
+
+#### Annotation API
+```
+AnnotationText(x, y, str;
+               z = NaN, t =  NaN,
+               color = RGB(0,0,0), angle = 0.0, fontfamily = "sans", fontsize = 10,
+               fontoptions = "",  halign = "center", valign = "center", markup = false, scale=true)
+```
+Place `str` at position `(x,y)`.
+
+Properties:
+
+* `z` - position on z axis, for 3D images
+* `t` - position on time axis, for movie-like images
+* `color`
+* `angle`
+* `fontfamily`
+* `fontsize` - font size in points
+* `fontoptions`
+* `halign` - "center", "left", or "right"
+* `valign` - "center", "top", or "bottom"
+* `markup`
+* `scale` - scale the text as the image is zoomed (default: `true`)
+
+
+```
+AnnotationPoints([xy | xys | x, y];
+                 z = NaN, t = NaN, size=10.0, shape::Char='x',
+                 color = RGB(1,1,1), linewidth=1.0, linecolor=color, scale::Bool=false)
+```
+
+Annotate the point `xy`, `(x,y)`, or the points `xys`.  `xys` maybe a Vector of tuples `Vector{(Real,Real)}`, or a `2 x N` Matrix.  Points are assumed to be in `(x,y)` order. (TODO: this could be generalized, as with lines.)
+
+Properties:
+
+* `z` - position on z axis, for 3D images
+* `t` - position on time axis, for movie-like images
+* `size` - how large to draw the point
+* `shape` - one of `'.'`, `'x'`, `'o'`, `'+'`, `'*'`
+* `color`
+* `linewidth` - width of lines used to draw the point
+* `linecolor` - line color; defaults to `color`; filled circles (shape=`'.'`) can have a different outline and fill color
+* `scale` - scale the drawn size of the point when the image is scaled (default: `false`)
+
+
+```
+AnnotationLines(line | lines | c1,c2,c3,c4;
+                z = NaN, t = NaN,
+                color = RGB(1,1,1), linewidth=1.0, coord_order="xyxy")
+```
+
+Draw `line`, `lines`, or the line with coordinates `(c1,c2,c3,c4)`.  `line` is specified as a tuple of point tuples, `((x1,y1),(x2,y2))`.  `lines` may be a `Vector` of such lines, or a `4 x N` matrix.  For a matrix or when specifying coordinates independently, the coordinate order is specified by `coord_order`, which defaults to "xyxy".
+
+Properties:
+
+* `z` - position on z axis, for 3D images
+* `t` - position on time axis, for movie-like images
+* `color`
+* `linewidth` - width of the line(s)
+* `coord_order` - for matrix or coordinate inputs, the order of the coordinates (e.g., "xyxy", "xxyy", "yyxx")
+
 
 ## Additional notes
 
 ### Calling display from a script file
 
-If you call Julia from a script file, the julia process will terminate towards the end of the program. This will cause any windows opened with `display()` to terminate (Which is probably not what you intend). We want to make it only terminate the process when the image window changes. Bellow is some example code to do this:
+If you call Julia from a script file, the julia process will terminate at the end of the program. This will cause any windows opened with `display()` to terminate, which is probably not what you intend. We want to make it only terminate the process when the image window is closed. Below is some example code to do this:
 
 ```
 using Tk
@@ -185,7 +284,7 @@ imgc, imgslice = display(img);
 #If we are not in a REPL
 if (!isinteractive())
 
-	# Create a condition object
+    # Create a condition object
     c = Condition()
 
     # Get the main window (A Tk toplevel object)
@@ -199,9 +298,9 @@ if (!isinteractive())
 end
 ```
 
-This will stop the julia process from terminating immediately. Note that if we did not add the `bind` function, the process will keep waiting even after the image window has closed, and you will have to manually close it with `CTRL + C`.
+This will prevent the julia process from terminating immediately. Note that if we did not add the `bind` function, the process will keep waiting even after the image window has closed, and you will have to manually close it with `CTRL + C`.
 
-If you are opening more than one window you may need to create more than one `Condition` object.
+If you are opening more than one window you will need to create more than one `Condition` object, if you wish to wait until the last one is closed.
 
 <br>
-<br> 
+<br>
