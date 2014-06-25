@@ -219,7 +219,7 @@ yrange(img2::ImageSlice2d) = (ymin(img2), ymax(img2))
 #   name: a string giving the window name
 #   background, perimeter: colors
 
-function display{A<:AbstractArray}(img::A; proplist...)
+function view{A<:AbstractArray}(img::A; proplist...)
     # Convert keyword list to dictionary
     props = Dict{Symbol,Any}()
     sizehint(props, length(proplist))
@@ -316,7 +316,7 @@ function display{A<:AbstractArray}(img::A; proplist...)
 end
 
 # Display a new image in an old ImageCanvas, preserving properties
-function display{A<:AbstractArray}(imgc::ImageCanvas, img::A; proplist...)
+function view{A<:AbstractArray}(imgc::ImageCanvas, img::A; proplist...)
     # Convert keyword list to dictionary
     props = Dict{Symbol,Any}()
     sizehint(props, length(proplist))
@@ -337,7 +337,7 @@ function display{A<:AbstractArray}(imgc::ImageCanvas, img::A; proplist...)
 end
 
 # Display an image in a Canvas. Do not create controls.
-function display{A<:AbstractArray}(c::Canvas, img::A; proplist...)
+function view{A<:AbstractArray}(c::Canvas, img::A; proplist...)
     # Convert keyword list to dictionary
     props = Dict{Symbol,Any}()
     sizehint(props, length(proplist))
@@ -380,6 +380,11 @@ function annotate!(imgc::ImageCanvas, img2::ImageSlice2d, ann; anchored::Bool=tr
     len
 end
 
+immutable AnnotationHandle{T}
+    ann::T
+    hash::Uint
+end
+
 function annotate_nodraw!(imgc::ImageCanvas, img2::ImageSlice2d, ann; anchored::Bool=true)
     local newann
     if anchored
@@ -389,7 +394,7 @@ function annotate_nodraw!(imgc::ImageCanvas, img2::ImageSlice2d, ann; anchored::
     end
     h = hash(newann)
     imgc.annotations[h] = newann
-    h
+    AnnotationHandle(newann, h)
 end
 
 function validate_annotations!(imgc::ImageCanvas)
@@ -399,12 +404,12 @@ function validate_annotations!(imgc::ImageCanvas)
     end
 end    
 
-function delete_annotation!(imgc::ImageCanvas, h::Uint)
-    delete!(imgc.annotations, h)
+function delete!(imgc::ImageCanvas, h::AnnotationHandle)
+    delete!(imgc.annotations, h.hash)
     redraw(imgc)
 end
 
-function delete_annotations!(imgc::ImageCanvas)
+function empty!(imgc::ImageCanvas)
     empty!(imgc.annotations)
     redraw(imgc)
 end

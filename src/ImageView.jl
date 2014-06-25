@@ -7,7 +7,7 @@ using Gtk, Gtk.ShortNames, Gtk.GConstants
 using Cairo
 using Images
 
-import Base: parent, show
+import Base: parent, show, delete!, empty!
 import Base.Graphics: width, height, fill, set_coords
 import Gtk: toplevel, draw
 
@@ -26,14 +26,19 @@ export # types
     annotate!,
     canvas,
     canvasgrid,
-    delete_annotation!,
     delete_annotations!,
     destroy,
-    display,
 #     ftshow,
 #     imshow,
     parent,
     scalebar,
-    toplevel
+    toplevel,
+    view
+
+@deprecate delete_annotations! empty!
+@deprecate delete_annotation! delete!
+@deprecate display(c::Canvas, img::AbstractArray; proplist...) view(c, img; proplist...)
+@deprecate display(imgc::ImageCanvas, img::AbstractArray; proplist...) view(imgc, img; proplist...)
+@deprecate display(img::AbstractArray; proplist...) view(img; proplist...)
 
 end
