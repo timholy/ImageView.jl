@@ -2,7 +2,7 @@
 
 module Navigation
 
-import Gtk
+import Gtk, Gtk.GConstants
 using Gtk.ShortNames
 
 ## Type for holding GUI state
@@ -116,8 +116,9 @@ function init_navigation!(g, ctrls::NavigationControls, state::NavigationState, 
     # Context menu for settings
     menu = @Menu()
     signal_connect(parent(g), "button_press_event") do widget, event
-        if event.button == 3 && event.event_type == EventType.BUTTON_PRESS
+        if event.button == 3 && event.event_type == GConstants.GdkEventType.BUTTON_PRESS
             popup(menu, event)
+            showall(menu)
         end
     end
     playback = @MenuItem("Playback speed...")
@@ -133,10 +134,10 @@ function set_fps!(state::NavigationState)
     e = @Entry()
     setproperty!(e, :text, string(state.fps))
     ok = @Button("OK")
-    cancel = Button("Cancel")
+    cancel = @Button("Cancel")
     
     g = @Table(2, 2)
-    win = Window("Set frame rate",200,60)
+    win = @Window("Set frame rate",200,60)
     push!(win, g)
     g[1,1] = l
     g[2,1] = e
