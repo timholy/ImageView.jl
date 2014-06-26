@@ -107,8 +107,8 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
     # All bindings
     signal_connect(emin, "activate") do widget
         try
-            my_min = float64(emin[:text,String])
-            my_max = float64(emax[:text,String])
+            my_min = float64(getproperty(emin, :text, String))
+            my_max = float64(getproperty(emax, :text, String))
             update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, cdata, rerender)
         catch
             setproperty!(emin, :text, string(cs.min))
@@ -116,8 +116,8 @@ function contrastgui{T}(win, img::AbstractArray{T}, cs::ContrastSettings, callba
     end
     signal_connect(emax, "activate") do widget
         try
-            my_min = float64(emin[:text,String])
-            my_max = float64(emax[:text,String])
+            my_min = float64(getproperty(emin, :text, String))
+            my_max = float64(getproperty(emax, :text, String))
             update_values(emin, emax, min_slider, max_slider, my_min, my_max, cs, cdata, rerender)
         catch
             setproperty!(emax, :text, string(cs.max))
