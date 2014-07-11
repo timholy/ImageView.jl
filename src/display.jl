@@ -838,3 +838,9 @@ AnnotationScalebarFixed{T}(width::T, height::T, imsl::ImageSlice2d, centerx::Rea
 
 scalebar(imgc::ImageCanvas, imsl::ImageSlice2d, length; x = 0.8, y = 0.1, color = RGB(1,1,1)) = annotate!(imgc, imsl, AnnotationScalebarFixed(length/1, length/10, (width,height)->scalebarsize(imsl, width, height), x, y, color), anchored=false)
 
+# Exporting figures
+
+function write_to_png(imgc::ImageCanvas, filename)
+    ctx = copy(imgc.c.backcc, imgc.canvasbb)
+    Cairo.write_to_png(ctx.surface, filename)
+end

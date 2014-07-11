@@ -33,7 +33,8 @@ export # types
     parent,
     scalebar,
     toplevel,
-    view
+    view,
+    write_to_png
 
 @deprecate delete_annotations! empty!
 @deprecate delete_annotation! delete!

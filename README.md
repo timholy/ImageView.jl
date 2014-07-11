@@ -29,14 +29,14 @@ img = testimage("mandrill")
 
 ## Demonstration of the GUI
 
-Now display the image:
+Now view the image:
 ```
-display(img, pixelspacing = [1,1])
+view(img, pixelspacing = [1,1])
 ```
-The basic command to view the image is `display`.
-The optional `pixelspacing` input tells `display` that this image has a fixed aspect ratio, and that this needs to be honored when displaying the image. (Alternatively, you could set `img["pixelspacing"] = [1,1]` and then you wouldn't have to tell this to the `display` function.)
+The basic command to view the image is `view`.
+The optional `pixelspacing` input tells `view` that this image has a fixed aspect ratio, and that this needs to be honored when displaying the image. (Alternatively, you could set `img["pixelspacing"] = [1,1]` and then you wouldn't have to tell this to the `view` function.)
 
-**Note:** If you are running Julia from a script file, the julia process will terminate towards the end of the program. This will cause any windows opened with `display()` to terminate (Which is probably not what you intend). Refer to [calling display from a script file](#calling-display-from-a-script-file) section for more information on how to avoid this behavior. 
+**Note:** If you are running Julia from a script file, the julia process will terminate towards the end of the program. This will cause any windows opened with `view()` to terminate (Which is probably not what you intend). Refer to [calling view from a script file](#calling-view-from-a-script-file) section for more information on how to avoid this behavior. 
 
 You should get a window with your image:
 
@@ -51,7 +51,7 @@ Note the black perimeter; that's because we've specified the aspect ratio throug
 Try it without specifying `pixelspacing`, and you'll see that the image stretches to fill the window, but it looks distorted:
 
 ```
-display(img)
+view(img)
 ```
 
 ![photo](readme_images/photo3.jpg)
@@ -73,13 +73,13 @@ Note as you zoom via the mouse, the zoom stays focused around the mouse pointer 
 
 
 But wait, there's more!
-You can display the image upside-down with
+You can view the image upside-down with
 ```
-display(img, pixelspacing = [1,1], flipy=true)
+view(img, pixelspacing = [1,1], flipy=true)
 ```
 or switch the `x` and `y` axes with
 ```
-display(img, pixelspacing = [1,1], xy=["y","x"])
+view(img, pixelspacing = [1,1], xy=["y","x"])
 ```
 ![photo](readme_images/photo6.jpg)
 ![photo](readme_images/photo7.jpg)
@@ -88,7 +88,7 @@ To experience the full functionality, you'll need a "4D  image," a movie (time s
 If you don't happen to have one lying around, you can create one via `include("test/test4d.jl")`, where `test` means the test directory in `ImageView`.
 (Assuming you installed `ImageView` via the package manager, you can say `include(joinpath(Pkg.dir(), "ImageView", "test", "test4d.jl"))`.)
 This creates a solid cone that changes color over time, again in the variable `img`.
-Load this file, then type `display(img)`.
+Load this file, then type `view(img)`.
 You should see something like this:
 
 ![GUI snapshot](readme_images/display_GUI.jpg)
@@ -110,10 +110,10 @@ You can change the playback speed by right-clicking in an empty space within the
 <br />
 <br />
 
-By default, `display` will show you slices in the `xy`-plane.
+By default, `view` will show you slices in the `xy`-plane.
 You might want to see a different set of slices from the 4d image:
 ```
-display(img, xy=["x","z"])
+view(img, xy=["x","z"])
 ```
 Initially you'll see nothing, but that's because this edge of the image is black.
 Type 151 into the `y:` entry box (note its name has changed) and hit enter, or move the "y" slider into the middle of its range; now you'll see the cone from the side.
@@ -131,19 +131,19 @@ Finally, for grayscale images, right-clicking on the image yields a brightness/c
 
 ## Programmatic usage
 
-`display` returns two outputs:
+`view` returns two outputs:
 ```
-imgc, imgslice = display(img)
+imgc, imgslice = view(img)
 ```
 `imgc` is an `ImageCanvas`, and holds information and settings about the display. `imgslice` is useful if you're supplying multidimensional images; from it, you can infer the currently-selected frame in the GUI.
 
 Using these outputs, you can display a new image in place of the old one:
 ```
-display(imgc, newimg)
+view(imgc, newimg)
 ```
 This preserves settings (like `pixelspacing`); should you want to forget everything and start fresh, do it this way:
 ```
-display(canvas(imgc), newimg)
+view(canvas(imgc), newimg)
 ```
 `canvas(imgc)` just returns a [Tk Canvas](https://github.com/JuliaLang/Tk.jl/tree/master/examples), so this shows you can view images inside any pre-defined `Canvas`.
 
@@ -160,10 +160,10 @@ Another nice tool is `canvasgrid`:
 ```
 c = canvasgrid(2,2)
 ops = [:pixelspacing => [1,1]]
-display(c[1,1], testimage("lighthouse"); ops...)
-display(c[1,2], testimage("mountainstream"); ops...)
-display(c[2,1], testimage("moonsurface"); ops...)
-display(c[2,2], testimage("mandrill"); ops...)
+view(c[1,1], testimage("lighthouse"); ops...)
+view(c[1,2], testimage("mountainstream"); ops...)
+view(c[2,1], testimage("moonsurface"); ops...)
+view(c[2,2], testimage("mandrill"); ops...)
 ```
 ![canvasgrid snapshot](readme_images/canvasgrid.jpg)
 
@@ -180,7 +180,7 @@ and "floating" annotations are best for things like scalebars.
 
 Here's an example of adding a scale bar to an image:
 ```julia
-imgc, imsl = ImageView.display(img)
+imgc, imsl = ImageView.view(img)
 length = 30
 ImageView.scalebar(imgc, imsl, length; x = 0.1, y = 0.05)
 ```
@@ -197,13 +197,13 @@ z = ones(10,50);
 y = 8; x = 2;
 z[y,x] = 0
 zimg = convert(Image, z)
-imgc, img2 = ImageView.display(zimg,pixelspacing=[1,1]);
+imgc, img2 = ImageView.view(zimg,pixelspacing=[1,1]);
 Tk.set_size(ImageView.toplevel(imgc), 200, 200)
 idx = ImageView.annotate!(imgc, img2, ImageView.AnnotationText(x, y, "x", color=RGB(0,0,1), fontsize=3))
 idx2 = ImageView.annotate!(imgc, img2, ImageView.AnnotationPoint(x+10, y, shape='.', size=4, color=RGB(1,0,0)))
 idx3 = ImageView.annotate!(imgc, img2, ImageView.AnnotationPoint(x+20, y-6, shape='.', size=1, color=RGB(1,0,0), linecolor=RGB(0,0,0), scale=true))
 idx4 = ImageView.annotate!(imgc, img2, ImageView.AnnotationLine(x+10, y, x+20, y-6, linewidth=2, color=RGB(0,1,0)))
-#ImageView.delete_annotation!(imgc, idx)
+ImageView.delete!(imgc, idx)
 ```
 
 #### Annotation API
@@ -269,9 +269,9 @@ Properties:
 
 ## Additional notes
 
-### Calling display from a script file
+### Calling view from a script file
 
-If you call Julia from a script file, the julia process will terminate at the end of the program. This will cause any windows opened with `display()` to terminate, which is probably not what you intend. We want to make it only terminate the process when the image window is closed. Below is some example code to do this:
+If you call Julia from a script file, the julia process will terminate at the end of the program. This will cause any windows opened with `view()` to terminate, which is probably not what you intend. We want to make it only terminate the process when the image window is closed. Below is some example code to do this:
 
 ```
 using Tk
@@ -279,7 +279,7 @@ using Images
 using ImageView
 
 img = imread()
-imgc, imgslice = display(img);
+imgc, imgslice = view(img);
 
 #If we are not in a REPL
 if (!isinteractive())
